@@ -1,0 +1,38 @@
+[
+ {
+  "text": "<b>Google показала Gemini 4 Argon: модель, которая умеет думать очень долго</b>\n\nGoogle представила новую флагманскую модель Gemini 4 Argon. Лимит ответа вырос с 64 тысяч до миллиона токенов, поэтому модель может решать сложные задачи за один заход: от кода до юридических и финансовых документов.\n\nВнутри компании её уже проверяют в деле. Агенты Argon нашли оптимизации памяти в дата-центрах, и после внедрения освободится более 300 ТиБ. Видеодекодер libgav1 на безопасном Rust получился в 2,7 раза быстрее прежнего порта.\n\nПока Argon доступна только проверенным специалистам по кибербезопасности в программе Fairwind. Широкий доступ откроют после дополнительных проверок безопасности, а точных сроков в анонсе нет. Стартовая цена: $2 за миллион входных и $10 за миллион выходных токенов.\n\nИсточник: <a href=\"https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/\">блог Google</a>",
+  "media": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/g4_30-09-26_key-art_blog.width-1300.png",
+  "media_type": "photo",
+  "time": "09:00"
+ },
+ {
+  "text": "<b>В Китае зажгли термоядерную реакцию на «чистом» топливе: водороде и боре</b>\n\nКомпания ENN Group впервые провела кратковременную термоядерную реакцию на смеси водорода и бора-11 в токамаке EXL-50U. В привычной реакции дейтерия с тритием выделяются нейтроны и радиация, а тритий дорог и редок. Здесь получаются безобидные ядра гелия, и жёсткого нейтронного излучения нет.\n\nПлазму разогревали пучком нейтральных частиц и радиоволнами. По данным South China Morning Post, скорость реакций превысила 100 миллионов в секунду. Приехавшая делегация учёных назвала результат «значительным и ценным вкладом».\n\nДо электростанций ещё далеко. Инженеры теперь хотят довести плазму до 100 миллионов градусов, сроков коммерческого применения нет.\n\nИсточник: <a href=\"https://www.goodnewsnetwork.org/chinese-commercial-reactor-achieves-nuclear-fusion-with-clean-hydrogen-boron-fuel/\">Good News Network</a>",
+  "media": "https://www.goodnewsnetwork.org/wp-content/uploads/2026/10/ENN-Groups-EXL-50U-spherical-device-which-successfully-achieved-hydrogen-boron-fusion-reactions-credit-handout.jpg",
+  "media_type": "photo",
+  "time": "10:30"
+ },
+ {
+  "text": "<b>Спиленный три года назад клён Сикамор-Гэп пошёл в рост</b>\n\nЗнаменитое 150-летнее дерево у Адрианова вала в Англии спилили вандалы в 2023 году. Теперь аэроснимки показали, что пень окружило кольцо молодых побегов высотой от 60 до 90 сантиметров.\n\nВ National Trust говорят, что помогли особые меры: рыхлую почву вокруг корней не уплотняют, а людей близко не пускают. Из семян дерева уже вырастили 49 саженцев, их раздали сообществам по всей Британии.\n\nПо оценкам биологов, в тени новых ветвей можно будет сидеть уже лет через десять. А до прежних размеров дерево вырастет примерно за 150 лет.\n\nИсточник: <a href=\"https://www.goodnewsnetwork.org/flourishing-sycamore-gap-tree-has-ring-of-new-shoots-already-3-feet-tall/\">Good News Network</a>",
+  "media": "https://www.goodnewsnetwork.org/wp-content/uploads/2026/10/overlooking-the-sycamore-gap-stump-on-hadrians-wall.-credit-nt-images-annapurna-mellor.jpg",
+  "media_type": "photo",
+  "time": "12:00"
+ },
+ {
+  "text": "<b>Gemini Live научился быть глазами: Guided Vision для Android</b>\n\nGoogle запустила Guided Vision в Gemini Live. Включаете камеру, и Gemini голосом описывает всё вокруг, отвечает на уточняющие вопросы и подсказывает, как перенаправить камеру: «повернитесь чуть вправо», «шаг назад».\n\nФункция нужна прежде всего слепым и слабовидящим людям. С ней можно прочитать мелкий текст на упаковке, найти потерянный наушник, проверить цвет куртки или меню в тусклом свете. Её делали вместе с сервисом Aira, а больше тысячи его тестировщиков помогали проверять модель.\n\nКак включить: в профиле приложения Gemini переключите «Use Guided Vision in Live». Нужен Android 9 и новее. Google оговаривается, что это не замена белой трости и не инструмент для навигации.\n\nИсточник: <a href=\"https://blog.google/innovation-and-ai/products/gemini-app/guided-vision-gemini-live/\">блог Google</a>",
+  "media": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/GuidedVision_hero.width-1300.png",
+  "media_type": "photo",
+  "time": "15:00"
+ },
+ {
+  "text": "<b>Крис Эванс устроил «свидание мечты» чихуахуа и золотистому ретриверу. Работает безотказно</b>\n\nВ серии The Dodo «Dream Date» звёзды играют и делятся угощением с приютскими собаками. На этот раз гостем был Капитан Америка. Он общался с парой из бостонского приюта: крошечной чихуахуа Грег и лохматой ретривером Карли. Они так привязаны друг к другу, что отдать их можно только вместе.\n\nКарли с удовольствием играла, а вот Грегу актёр был не слишком интересен. Эванс рассказал про свою боксёрскую смесь Додждера и сказал в кадре: «Надеюсь, кто-нибудь подарит им дом».\n\nМолитва сработала: пару забрали, а новые хозяева завели им свой Instagram.\n\nИсточник: <a href=\"https://www.goodnewsnetwork.org/chris-evans-puts-his-limelight-on-a-bonded-dog-pair-with-cute-video-immediately-sees-them-adopted/\">Good News Network</a>",
+  "media": "https://www.goodnewsnetwork.org/wp-content/uploads/2026/09/Left-Greg-and-Carley-a-pair-bonded-dog-couple-right-Chris-Evans-in-2023-credits-Animal-Rescue-League-of-Boston-via-Facebook.jpg",
+  "media_type": "photo",
+  "time": "18:00"
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nИИ Google показал лучший результат среди 39 моделей в прогнозе госпитализаций с гриппом по оценке CDC за сезон 2025–26. Подробности есть в <a href=\"https://blog.google/innovation-and-ai/models-and-research/google-research/google-science-ai-flu-forecasts/\">блоге Google Research</a>.\n\nНа Android запустили Guided Vision: Gemini голосом описывает, что видит камера, для слепых и слабовидящих людей.\n\nВ Китае получили термоядерную реакцию на топливе из водорода и бора, без жёсткого нейтронного излучения.\n\nУ спиленного клёна Сикамор-Гэп вырос круг побегов высотой почти метр. А Греции вернули 15 древних артефактов, которые когда-то вывезли из страны нелегально, как сообщает <a href=\"https://www.goodnewsnetwork.org/stunning-collection-of-stolen-greek-artifacts-spanning-5000-years-were-just-returned-to-greece/\">Good News Network</a>.\n\nИ да, чихуахуа с ретривером нашли дом вместе.",
+  "media": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Flusight_socialhero.max-1440x810.png",
+  "media_type": "photo",
+  "time": "21:00"
+ }
+]
