@@ -16,7 +16,7 @@
 ## Как это устроено
 - `poll.py` (workflow `poll.yml`) читает сообщения и кнопки, ведёт очередь `queue.json` и вопросы бота `pending.json`, публикует посты по времени. Задачи на написание текста передаёт в workflow `ai.yml` (`ai.py`).
 - `polza.py` — общие функции для Polza AI (OpenAI-совместимый API, https://polza.ai/docs), через него идут все запросы к нейросетям.
-- `cloudflare/worker.js` — «дверной звонок» на Cloudflare Workers: раз в минуту проверяет, есть ли новые сообщения или пост, которому пора выйти, и сразу запускает `poll.yml`. Без него `poll.yml` запускается по расписанию GitHub, с задержками.
+- `cloudflare/worker.js` — «дверной звонок» на Cloudflare Workers: раз в минуту проверяет, есть ли новые сообщения или пост, которому пора выйти, и сразу запускает `poll.yml`. Без него `poll.yml` запускается по расписанию GitHub, с задержками. Настройка: `cloudflare/README.md`.
 
 ## Секреты репозитория (Settings → Secrets and variables → Actions)
 - `TELEGRAM_BOT_TOKEN` — токен от @BotFather
