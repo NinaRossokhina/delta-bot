@@ -5,7 +5,8 @@ Usage: python send_drafts.py drafts/2026-10-01.json
 Draft file format: a list of objects
   {"text": "<b>Заголовок</b>\\n\\nТекст... <a href='...'>Источник</a>",
    "media": "https://.../image.jpg",      # optional
-   "media_type": "photo" | "video"}       # optional, default photo
+   "media_type": "photo" | "video" | "link"}  # optional, default photo;
+                                               # "link" = text post with a link preview of media
 Text uses Telegram HTML formatting.
 """
 import json
@@ -25,7 +26,7 @@ BUTTONS = {"inline_keyboard": [[
 def send(draft):
     text, media = draft["text"], draft.get("media")
     kind = draft.get("media_type", "photo")
-    if media and len(text) <= CAPTION_LIMIT:
+    if media and kind != "link" and len(text) <= CAPTION_LIMIT:
         method = "sendVideo" if kind == "video" else "sendPhoto"
         return call(method, chat_id=ADMIN, **{kind: media}, caption=text,
                     parse_mode="HTML", reply_markup=BUTTONS)
