@@ -13,5 +13,5 @@ jobs:
       - run: python poll.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+          ADMIN_CHAT_ID: "813825039"
           CHANNEL_ID: "@delta24news"
