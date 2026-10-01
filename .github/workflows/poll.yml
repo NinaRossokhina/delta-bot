@@ -4,14 +4,26 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 concurrency: poll
+permissions:
+  contents: write
 jobs:
   poll:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      ADMIN_CHAT_ID: "813825039"
+      CHANNEL_ID: "@delta24news"
     steps:
       - uses: actions/checkout@v4
       - run: python poll.py
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          ADMIN_CHAT_ID: "813825039"
-          CHANNEL_ID: "@delta24news"
+      - name: Save the queue
+        run: |
+          git add queue.json
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Update publishing queue"
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          exit 1
+      - name: Confirm processed updates
+        run: if [ -f .confirm_offset ]; then python poll.py --confirm "$(cat .confirm_offset)"; fi
