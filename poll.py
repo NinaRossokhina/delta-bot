@@ -49,29 +49,46 @@ def unqueue(queue, message_id):
     queue[:] = [i for i in queue if i["msg"] != message_id]
 
 
-def retime(queue, msg):
-    """Admin replied to a draft with a time like 15:30: move the draft to that time."""
-    m = TIME.match(msg.get("text", ""))
-    draft = msg.get("reply_to_message")
-    if not m or not draft or int(m[1]) > 23 or int(m[2]) > 59:
-        return
-    buttons = [b["callback_data"] for row in draft.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
-    old = next((b[3:] for b in buttons if b.startswith(("at:", "un:"))), None)
-    if not old:
-        return  # not a scheduled-style draft that is still open (or already published / rejected)
-    at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
-    mid = draft["message_id"]
-    if any(i["msg"] == mid for i in queue):
-        unqueue(queue, mid)
-        queue.append({"msg": mid, "at": at})
-        set_buttons(mid, scheduled_buttons(at))
-    else:
-        set_buttons(mid, draft_buttons(at))
+def react(msg, emoji="👍"):
     try:
         call("setMessageReaction", chat_id=ADMIN, message_id=msg["message_id"],
-             reaction=[{"type": "emoji", "emoji": "👍"}])
+             reaction=[{"type": "emoji", "emoji": emoji}])
     except RuntimeError:
         pass
+
+
+def on_reply(queue, msg):
+    """Admin replied to an open draft: "15:30" moves it to that time, any other text replaces the post text."""
+    draft = msg.get("reply_to_message")
+    if not draft or "text" not in msg:
+        return
+    markup = draft.get("reply_markup", {})
+    buttons = [b["callback_data"] for row in markup.get("inline_keyboard", []) for b in row]
+    if not any(b == "pub" or b.startswith(("at:", "un:")) for b in buttons):
+        return  # already published or rejected, or not a draft
+    mid = draft["message_id"]
+    m = TIME.match(msg["text"])
+    if m and int(m[1]) <= 23 and int(m[2]) <= 59:
+        old = next((b[3:] for b in buttons if b.startswith(("at:", "un:"))), now_msk())
+        at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
+        if any(i["msg"] == mid for i in queue):
+            unqueue(queue, mid)
+            queue.append({"msg": mid, "at": at})
+            set_buttons(mid, scheduled_buttons(at))
+        else:
+            set_buttons(mid, draft_buttons(at))
+    elif "caption" in draft or any(k in draft for k in ("photo", "video")):
+        if len(msg["text"]) > 1024:
+            call("sendMessage", chat_id=ADMIN, reply_to_message_id=msg["message_id"],
+                 text="Под фото помещается до 1024 символов, этот текст длиннее. Сократи, пожалуйста.")
+            return
+        call("editMessageCaption", chat_id=ADMIN, message_id=mid, caption=msg["text"],
+             caption_entities=msg.get("entities", []), reply_markup=markup)
+    else:
+        call("editMessageText", chat_id=ADMIN, message_id=mid, text=msg["text"],
+             entities=msg.get("entities", []), reply_markup=markup,
+             link_preview_options=draft.get("link_preview_options"))
+    react(msg)
 
 
 def handle(update, queue):
@@ -81,7 +98,7 @@ def handle(update, queue):
              text="Привет! Это Delta. Сюда будут приходить черновики постов.")
         return
     if msg and msg["chat"]["id"] == ADMIN:
-        retime(queue, msg)
+        on_reply(queue, msg)
         return
     q = update.get("callback_query")
     if not q or q["from"]["id"] != ADMIN:
