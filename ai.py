@@ -4,7 +4,9 @@ Task kinds (JSON in the TASK env var):
   {"kind": "chat", "text": "пришли 2 новые новости"}  - Nina's free-form request
   {"kind": "edit", "msg": 123, "html": "...", "media": "...", "media_type": "photo",
    "day": "2026-10-02", "instructions": "1. короче 2. другой заголовок"}  - rewrite a draft
-New or rewritten posts are sent to Nina as drafts with the usual buttons.
+  {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
+New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
+committed by the workflow, which then runs send.yml for the new file.
 """
 import glob
 import html
@@ -14,7 +16,9 @@ import re
 import urllib.request
 
 import polza
-from schedule import draft_buttons, now_msk
+from datetime import date, timedelta
+
+from schedule import SLOTS, draft_buttons, now_msk
 from send_drafts import send
 from tg import call
 
@@ -45,6 +49,30 @@ TOOLS = [
     ),
 ]
 PAGE_LIMIT = 8000
+RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
+DAILY_SCHEMA = {
+    "type": "object",
+    "properties": {"posts": {"type": "array", "description": "5-7 posts for today, the evening digest last.", "items": {
+        "type": "object",
+        "properties": {
+            "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide, in its order."},
+            "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source as <a href='...'>word</a>. Under 1000 characters."},
+            "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post."},
+            "source": {"type": "string", "description": "URL of the primary source the facts were checked against."},
+        },
+        "required": ["rubric", "text", "image", "source"],
+        "additionalProperties": False,
+    }}},
+    "required": ["posts"],
+    "additionalProperties": False,
+}
+EXTRA_TIMES = ["10:30", "13:30", "16:30", "19:30"]  # for days with more than 5 posts
+DAILY_TASK = """Prepare today's posts for the channel: {count} fresh news stories from the last 24 hours, one post each, following the rubrics of the style guide (the evening positive digest last, it sums up the day's good news).
+- Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
+- Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
+- Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
+- Do not repeat stories from the recent drafts listed above.
+Return the posts as JSON in the given format (this time not through send_drafts: the workflow saves and sends them)."""
 
 
 def meta(page, prop):
@@ -80,9 +108,13 @@ def read(path):
         return ""
 
 
-def recent_headlines():
+def recent_headlines(days=4):
+    today = date.fromisoformat(now_msk()[:10])
     lines = []
-    for path in sorted(glob.glob("drafts/*.json"))[-4:]:
+    for path in sorted(glob.glob("drafts/*.json")):
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", os.path.basename(path))
+        if not m or today - date.fromisoformat(m[1]) > timedelta(days=days):
+            continue
         for d in json.load(open(path, encoding="utf-8")):
             lines.append("- " + d["text"].split("\n")[0])
     return "\n".join(lines)
@@ -166,8 +198,67 @@ def run(task):
     return "Готово." if sent else "Не успел закончить, попробуй ещё раз."
 
 
+def times_for(n):
+    """Publish times for n posts: the usual slots (plus in-between ones on busy days), 21:00 last."""
+    day = sorted(SLOTS[:-1] + EXTRA_TIMES[:max(0, n - len(SLOTS))])
+    return day[:n - 1] + [SLOTS[-1]]
+
+
+def draft_path(day):
+    """drafts/<day>.json, or drafts/<day>-2.json etc. if that file is already there."""
+    path, i = f"drafts/{day}.json", 1
+    while os.path.exists(path):
+        i += 1
+        path = f"drafts/{day}-{i}.json"
+    return path
+
+
+def daily():
+    """Find today's posts, save them to drafts/<today>.json and return the path."""
+    tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
+    messages = [{"role": "system", "content": system_prompt()},
+                {"role": "user", "content": DAILY_TASK.format(count="as many as the style guide sets for today (5-7)")}]
+    for _ in range(20):
+        choice = polza.chat(messages, tools=tools, web=True,
+                            response_format=polza.json_schema("daily_posts", DAILY_SCHEMA))
+        message = choice.message
+        if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
+            raise RuntimeError("the model refused")
+        messages.append(polza.assistant_message(message))
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                result, _ = use_tool(tool_call, {"kind": "daily"})
+                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
+            continue
+        posts = json.loads(polza.text(message))["posts"]
+        digest = [p for p in posts if p["rubric"] == "digest"][-1:]  # always the last post of the day
+        posts = [p for p in posts if p["rubric"] != "digest"][:7 - len(digest)] + digest
+        if not posts:
+            raise RuntimeError("no posts in the answer")
+        day = now_msk()[:10]
+        drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
+                   "time": t} for p, t in zip(posts, times_for(len(posts)))]
+        path = draft_path(day)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(drafts, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+        return path
+    raise RuntimeError("no answer after 20 steps")
+
+
 def main():
     task = json.loads(os.environ["TASK"])
+    if task["kind"] == "daily":
+        try:
+            path = daily()
+        except Exception:
+            call("sendMessage", chat_id=ADMIN, text="Не получилось подготовить черновики на сегодня, попробуй запустить ещё раз.")
+            raise
+        print(f"saved {path}")
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                f.write(f"file={path}\n")
+        return
     try:
         answer = run(task)
     except Exception:

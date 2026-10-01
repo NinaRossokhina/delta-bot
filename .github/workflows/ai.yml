@@ -3,18 +3,37 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: "Task JSON (see ai.py)"
+        description: 'Task JSON (see ai.py). {"kind": "daily"} = черновики на сегодня'
         required: true
+        default: '{"kind": "daily"}'
+permissions:
+  contents: write
+  actions: write
 jobs:
   ai:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: pip install -q openai
-      - run: python ai.py
+      - id: ai
+        run: python ai.py
         env:
           TASK: ${{ github.event.inputs.task }}
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
+      # Daily drafts: commit the new file, then start send.yml for it
+      # (a push made with GITHUB_TOKEN does not trigger other workflows by itself).
+      - if: steps.ai.outputs.file != ''
+        env:
+          FILE: ${{ steps.ai.outputs.file }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add "$FILE"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Drafts for $(basename "$FILE" .json)"
+          ok=
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
+          [ -n "$ok" ] || exit 1
+          gh workflow run send.yml --ref main -f file="$FILE"

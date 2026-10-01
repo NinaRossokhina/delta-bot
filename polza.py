@@ -26,6 +26,11 @@ def function_tool(name, description, parameters, strict=True):
             "function": {"name": name, "description": description, "parameters": parameters, "strict": strict}}
 
 
+def json_schema(name, schema):
+    """response_format for structured output: the reply is JSON that matches `schema`."""
+    return {"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}}
+
+
 def chat(messages, tools=None, web=False, model=MODEL, max_tokens=16000, **params):
     """One Chat Completions request. Returns the first choice (.message, .finish_reason).
 
