@@ -6,6 +6,7 @@ on:
 concurrency: poll
 permissions:
   contents: write
+  actions: write
 jobs:
   poll:
     runs-on: ubuntu-latest
@@ -14,15 +15,17 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       ADMIN_CHAT_ID: "813825039"
       CHANNEL_ID: "@delta24news"
+      GITHUB_TOKEN: ${{ github.token }}
+      AI_ENABLED: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - run: python poll.py
       - name: Save the queue
         run: |
-          git add queue.json
+          git add queue.json pending.json feedback.md
           git diff --cached --quiet && exit 0
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -qm "Update publishing queue"
+            commit -qm "Update bot state"
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
           exit 1
       - name: Confirm processed updates

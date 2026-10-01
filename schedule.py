@@ -18,7 +18,8 @@ def draft_buttons(at):
     day, times = at[:10], sorted(set(SLOTS) | {at[11:]})
     return {"inline_keyboard": [
         [{"text": t, "callback_data": f"at:{day}T{t}"} for t in times],
-        [{"text": "Сейчас", "callback_data": "pub"}, {"text": "Отклонить", "callback_data": "rej"}],
+        [{"text": "Изменить", "callback_data": "edit"}, {"text": "Сейчас", "callback_data": "pub"},
+         {"text": "Отклонить", "callback_data": "rej"}],
     ]}
 
 

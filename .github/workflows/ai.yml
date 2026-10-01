@@ -1,0 +1,20 @@
+name: AI tasks
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Task JSON (see ai.py)"
+        required: true
+jobs:
+  ai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q anthropic
+      - run: python ai.py
+        env:
+          TASK: ${{ github.event.inputs.task }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_CHAT_ID: "813825039"
