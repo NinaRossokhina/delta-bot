@@ -7,7 +7,8 @@ Draft file format: a list of objects
    "media": "https://.../image.jpg",      # optional
    "media_type": "photo" | "video" | "link",  # optional, default photo;
                                                # "link" = text post with a link preview of media
-   "time": "12:00"}                            # optional, Moscow time; the date comes from the file name
+   "time": "12:00"}                            # optional, Moscow time, if not one of the usual slots;
+                                               # the date comes from the file name
 Text uses Telegram HTML formatting.
 """
 import json
@@ -15,16 +16,12 @@ import os
 import re
 import sys
 
-from schedule import draft_buttons, now_msk
+from schedule import SLOTS, draft_buttons, now_msk
 from tg import call
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
 CAPTION_LIMIT = 1024
-BUTTONS = {"inline_keyboard": [[
-    {"text": "Опубликовать", "callback_data": "pub"},
-    {"text": "Отклонить", "callback_data": "rej"},
-]]}
-HELP = ("Черновики на {day}, постов: {n}. Нажми «Опубликовать в …», и пост сам выйдет в это время. "
+HELP = ("Черновики на {day}, постов: {n}. Нажми под постом время (09:00, 12:00, 15:00, 18:00 или 21:00), и пост сам выйдет в это время. "
         "Чтобы поменять время, ответь на черновик сообщением вида 15:30. "
         "Чтобы исправить текст, скопируй черновик, поправь и пришли ответом на него.")
 
@@ -32,8 +29,8 @@ HELP = ("Черновики на {day}, постов: {n}. Нажми «Опуб
 def send(draft, day=None):
     text, media = draft["text"], draft.get("media")
     kind = draft.get("media_type", "photo")
-    time = draft.get("time")
-    buttons = draft_buttons(f"{day}T{time}") if time and day else BUTTONS
+    day = day or now_msk()[:10]
+    buttons = draft_buttons(f"{day}T{draft.get('time', SLOTS[0])}")
     if media and kind != "link" and len(text) <= CAPTION_LIMIT:
         method = "sendVideo" if kind == "video" else "sendPhoto"
         return call(method, chat_id=ADMIN, **{kind: media}, caption=text,
@@ -48,8 +45,7 @@ def main(path):
     drafts = json.load(open(path, encoding="utf-8"))
     m = re.search(r"\d{4}-\d{2}-\d{2}", os.path.basename(path))
     day = m.group(0) if m else now_msk()[:10]
-    if any(d.get("time") for d in drafts):
-        call("sendMessage", chat_id=ADMIN, text=HELP.format(day=f"{day[8:]}.{day[5:7]}", n=len(drafts)))
+    call("sendMessage", chat_id=ADMIN, text=HELP.format(day=f"{day[8:]}.{day[5:7]}", n=len(drafts)))
     for i, d in enumerate(drafts, 1):
         try:
             send(d, day)
