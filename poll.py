@@ -20,7 +20,7 @@ def handle(update):
     msg = update.get("message")
     if msg and msg.get("text", "").startswith("/start"):
         call("sendMessage", chat_id=msg["chat"]["id"],
-             text=f"Привет! Ваш chat id: {msg['chat']['id']}")
+             text="Привет! Это Delta. Сюда будут приходить черновики постов.")
         return
     q = update.get("callback_query")
     if not q or q["from"]["id"] != ADMIN:
