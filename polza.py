@@ -2,6 +2,7 @@
 
 All AI calls of the bot go through here. The key comes only from the POLZA_API_KEY env var.
 """
+import base64
 import os
 
 from openai import OpenAI
@@ -59,3 +60,15 @@ def text(message):
     if isinstance(content, list):
         content = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
     return (content or "").strip()
+
+
+TRANSCRIBE_MODEL = "openai/gpt-4o-transcribe"
+
+
+def transcribe(audio, mime="audio/ogg", language="ru", model=TRANSCRIBE_MODEL):
+    """Speech to text (POST /audio/transcriptions). `audio` is the file's bytes (mp3, wav, m4a, flac,
+    ogg or webm, up to 25 MB); it goes as a base64 data URL in the JSON body, as the docs show."""
+    file = f"data:{mime};base64,{base64.b64encode(audio).decode()}"
+    result = client().post("/audio/transcriptions", cast_to=object,
+                           body={"model": model, "file": file, "language": language})
+    return (result.get("text") or "").strip()

@@ -14,7 +14,7 @@ import urllib.request
 
 from drafthtml import to_html
 from schedule import draft_buttons, now_msk, scheduled_buttons
-from tg import call
+from tg import call, download
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
 CHANNEL = os.environ["CHANNEL_ID"]  # e.g. @delta24news
@@ -22,7 +22,8 @@ AI_ENABLED = os.environ.get("AI_ENABLED") == "true"
 QUEUE, PENDING, FEEDBACK = "queue.json", "pending.json", "feedback.md"
 TIME = re.compile(r"^\s*(\d{1,2})[:.](\d{2})\s*$")
 NO_AI = ("Пока я понимаю только кнопки под черновиками, ответ со временем (15:30) "
-         "и ответ с исправленным текстом. Писать новые посты научусь, когда подключат ключ Polza AI.")
+         "и ответ с исправленным текстом. Писать новые посты и слушать голосовые научусь, когда подключат ключ Polza AI.")
+NOT_HEARD = "Не получилось разобрать голосовое, попробуй ещё раз или напиши текстом."
 
 
 def load(path, default):
@@ -100,6 +101,16 @@ class Bot:
             say("Привет! Это Delta. Сюда приходят черновики постов. "
                 "Можно написать, например: «пришли 2 новые новости» или «сделай пост про новый iPhone».")
             return
+        voice = msg.get("voice") or msg.get("audio")
+        if voice and not text:
+            if not AI_ENABLED:
+                say(NO_AI)
+                return
+            text = self.hear(voice)
+            if not text:
+                say(NOT_HEARD)
+                return
+            msg = {**msg, "text": text, "entities": []}
         if not text:
             return
         target = msg.get("reply_to_message")
@@ -120,6 +131,16 @@ class Bot:
             self.ai({"kind": "chat", "text": text}, msg)
         else:
             say(NO_AI)
+
+    @staticmethod
+    def hear(voice):
+        """Text of a voice message via Polza speech to text; empty string if it failed."""
+        try:
+            import polza  # needs the openai package and POLZA_API_KEY, only when a voice comes
+            return polza.transcribe(download(voice["file_id"]), voice.get("mime_type") or "audio/ogg")
+        except Exception as e:
+            print(f"could not transcribe a voice message: {e!r}")
+            return ""
 
     @staticmethod
     def recent(about):
@@ -214,13 +235,13 @@ class Bot:
             self.unqueue(mid)
             set_buttons(mid, draft_buttons(data[3:]))
         elif data == "edit":
-            self.ask("Что изменить в этом посте? Напиши пунктами.", self.draft_info(draft))
+            self.ask("Что поправить? Ответь текстом или голосовым.", self.draft_info(draft))
         elif data == "rej":
             self.unqueue(mid)
             mark(mid, "✖️ Отклонено")
             title = to_html(draft)[0].split("\n")[0]
             title = re.sub(r"<[^>]+>", "", title)[:80]
-            self.ask("Почему отклоняешь? Учту в следующих постах.", {"kind": "reason", "title": title},
+            self.ask("Почему? Учту в следующих постах. Можно текстом или голосовым.", {"kind": "reason", "title": title},
                      buttons=[[{"text": "Пропустить", "callback_data": "skip"}]])
         elif data == "skip":
             self.pending.pop(str(mid), None)

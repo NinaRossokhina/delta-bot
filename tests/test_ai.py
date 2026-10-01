@@ -222,6 +222,15 @@ class AiTest(unittest.TestCase):
         self.assertEqual(ai.times_for(5), ["09:00", "12:00", "15:00", "18:00", "21:00"])
         self.assertEqual(ai.times_for(7), ["09:00", "10:30", "12:00", "13:30", "15:00", "18:00", "21:00"])
 
+    def test_transcribe_sends_base64_json(self):
+        self.replies = [{"text": " Пришли новость про роботов ", "language": "ru", "duration": 2.5}]
+        self.assertEqual(polza.transcribe(b"OggS-voice"), "Пришли новость про роботов")
+        r = self.requests[0]
+        self.assertEqual(r.url, "https://polza.ai/api/v1/audio/transcriptions")
+        self.assertEqual(r.headers["authorization"], "Bearer test-key")
+        self.assertEqual(json.loads(r.content), {"model": "openai/gpt-4o-transcribe",
+                                                 "file": "data:audio/ogg;base64,T2dnUy12b2ljZQ==", "language": "ru"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,9 +4,9 @@ Telegram-бот канала @delta24news: присылает Нине черн�
 по её просьбам пишет и правит посты через нейросеть. Подробности в README.md.
 
 ## Устройство
-- `poll.py` (workflow `poll.yml`, каждые ~5 минут) — кнопки и сообщения, очередь `queue.json`, вопросы бота `pending.json`, публикация по времени.
+- `poll.py` (workflow `poll.yml`, каждые ~5 минут) — кнопки и сообщения (голосовые сразу расшифровывает через `polza.transcribe`), очередь `queue.json`, вопросы бота `pending.json`, публикация по времени.
 - `ai.py` (workflow `ai.yml`) — задача `daily` (вручную: 5–7 новостей дня по JSON-схеме → `drafts/<дата>.json` → коммит → `send.yml`) и задачи `chat` и `edit` из `poll.py`: веб-поиск свежих новостей, посты по `style-guide.md` с учётом `feedback.md`, отправка через `send_drafts.send`.
-- `polza.py` — общие функции Polza AI. Все нейросети (текст, позже голосовые и картинки) идут только через Polza: OpenAI-совместимый клиент, `base_url` https://polza.ai/api/v1, модель `anthropic/claude-sonnet-5.5`. Документация: https://polza.ai/docs (список страниц: https://polza.ai/docs/llms.txt); параметры брать из неё, не угадывать.
+- `polza.py` — общие функции Polza AI. Все нейросети (текст, расшифровка голосовых `transcribe` → POST /audio/transcriptions, позже картинки) идут только через Polza: OpenAI-совместимый клиент, `base_url` https://polza.ai/api/v1, модель `anthropic/claude-sonnet-5.5`. Документация: https://polza.ai/docs (список страниц: https://polza.ai/docs/llms.txt); параметры брать из неё, не угадывать.
 - `send_drafts.py`, `schedule.py`, `tg.py`, `drafthtml.py` — Telegram и расписание.
 - Тесты на заглушках, без сети: `pip install openai`, затем `python -m unittest discover -s tests -v`.
 

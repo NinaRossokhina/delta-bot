@@ -97,6 +97,82 @@ class PollTest(unittest.TestCase):
         self.button(1, "at:2026-10-02T18:00"); self.button(2, "at:2026-10-02T09:00"); self.bot.save()
         self.assertEqual([i["msg"] for i in poll.load("queue.json", [])], [2, 1])
 
+    # --- dialog: «Изменить», «Отклонить», free requests, voice -------------
+    def message(self, **m):
+        self.bot.handle({"message": {"message_id": 50, "chat": {"id": ADMIN}, "from": {"id": ADMIN}, **m}})
+
+    def ai_on(self):
+        poll.AI_ENABLED = True
+        self.tasks = []
+        pa = mock.patch("poll.run_ai", self.tasks.append); pa.start(); self.addCleanup(pa.stop)
+
+    def asked(self):
+        return [p["text"] for m, p in self.calls if m == "sendMessage"]
+
+    def test_edit_asks_and_answer_goes_to_ai(self):
+        self.ai_on()
+        self.button(10, "edit")
+        self.assertEqual(self.asked(), ["Что поправить? Ответь текстом или голосовым."])
+        self.assertEqual(self.bot.pending["99"]["kind"], "edit")
+        self.bot.save()
+        self.assertIn("99", poll.load("pending.json", {}))  # survives until the next run
+        self.bot = poll.Bot(); self.ai_on()
+        self.message(text="короче и другой заголовок", reply_to_message={"message_id": 99})
+        task = self.tasks[0]
+        self.assertEqual((task["kind"], task["msg"], task["instructions"], task["day"]),
+                         ("edit", 10, "короче и другой заголовок", "2026-10-02"))
+        self.assertNotIn("asked", task)
+        self.assertEqual(self.bot.pending, {})
+
+    def test_reject_asks_why_and_saves_dated_reason(self):
+        self.button(10, "rej")
+        self.assertEqual(self.asked(), ["Почему? Учту в следующих постах. Можно текстом или голосовым."])
+        self.message(text="скучная тема")  # answered without tapping "reply"
+        self.assertEqual(open("feedback.md", encoding="utf-8").read(), "- 2026-10-02 «Заголовок»: скучная тема\n")
+        self.assertEqual(self.bot.pending, {})
+
+    def test_free_text_request_goes_to_ai(self):
+        self.ai_on()
+        self.message(text="пришли 2 новости про роботов")
+        self.assertEqual(self.tasks, [{"kind": "chat", "text": "пришли 2 новости про роботов"}])
+
+    def voice(self, heard="сделай короче", **extra):
+        with mock.patch("poll.download", return_value=b"OggS") as dl, \
+             mock.patch("polza.transcribe", return_value=heard) as tr:
+            self.message(voice={"file_id": "F1", "mime_type": "audio/ogg", "duration": 3}, **extra)
+        return dl, tr
+
+    def test_voice_answer_to_edit(self):
+        self.ai_on()
+        self.button(10, "edit")
+        dl, tr = self.voice(reply_to_message={"message_id": 99})
+        dl.assert_called_once_with("F1"); tr.assert_called_once_with(b"OggS", "audio/ogg")
+        self.assertEqual(self.tasks[0]["instructions"], "сделай короче")
+
+    def test_voice_reason_goes_to_feedback(self):
+        self.ai_on()
+        self.button(10, "rej")
+        self.voice("слишком сложно")
+        self.assertIn("«Заголовок»: слишком сложно", open("feedback.md", encoding="utf-8").read())
+
+    def test_voice_request_goes_to_ai(self):
+        self.ai_on()
+        self.voice("пришли новость про роботов")
+        self.assertEqual(self.tasks, [{"kind": "chat", "text": "пришли новость про роботов"}])
+
+    def test_voice_not_heard_keeps_question_open(self):
+        self.ai_on()
+        self.button(10, "edit")
+        with mock.patch("poll.download", side_effect=RuntimeError("getFile: boom")):
+            self.message(voice={"file_id": "F1"})
+        self.assertEqual(self.asked()[-1], poll.NOT_HEARD)
+        self.assertIn("99", self.bot.pending)
+        self.assertEqual(self.tasks, [])
+
+    def test_voice_without_ai(self):
+        self.message(voice={"file_id": "F1"})
+        self.assertEqual(self.asked(), [poll.NO_AI])
+
 
 if __name__ == "__main__":
     unittest.main()
