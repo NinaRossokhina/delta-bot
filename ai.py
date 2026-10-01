@@ -7,17 +7,18 @@ Task kinds (JSON in the TASK env var):
 New or rewritten posts are sent to Nina as drafts with the usual buttons.
 """
 import glob
+import html
 import json
 import os
+import re
+import urllib.request
 
-import anthropic
-
+import polza
 from schedule import draft_buttons, now_msk
 from send_drafts import send
 from tg import call
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
-MODEL = "claude-opus-5-5"
 
 POST_SCHEMA = {
     "type": "object",
@@ -30,20 +31,46 @@ POST_SCHEMA = {
     "additionalProperties": False,
 }
 TOOLS = [
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": 8},
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 8},
-    {
-        "name": "send_drafts",
-        "description": "Send finished posts to Nina as drafts for approval. Call it once with all posts.",
-        "strict": True,
-        "input_schema": {
-            "type": "object",
-            "properties": {"posts": {"type": "array", "items": POST_SCHEMA}},
-            "required": ["posts"],
-            "additionalProperties": False,
-        },
-    },
+    polza.function_tool(
+        "fetch_page",
+        "Open a web page: returns its title, og:image and main text. Use it to check facts in the primary "
+        "source and to find an image for the post.",
+        {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"], "additionalProperties": False},
+    ),
+    polza.function_tool(
+        "send_drafts",
+        "Send finished posts to Nina as drafts for approval. Call it once with all posts.",
+        {"type": "object", "properties": {"posts": {"type": "array", "items": POST_SCHEMA}},
+         "required": ["posts"], "additionalProperties": False},
+    ),
 ]
+PAGE_LIMIT = 8000
+
+
+def meta(page, prop):
+    for tag in re.findall(r"<meta\b[^>]*>", page, re.I):
+        if re.search(rf"""(?:property|name)\s*=\s*["']{re.escape(prop)}["']""", tag, re.I):
+            m = re.search(r"""content\s*=\s*["']([^"']*)""", tag, re.I)
+            if m:
+                return html.unescape(m[1])
+    return ""
+
+
+def fetch_page(url):
+    """The fetch_page tool: title, og:image and text of a page."""
+    if not url.startswith(("http://", "https://")):
+        return {"error": "only http(s) URLs"}
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; DeltaBot/1.0)"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            page = r.read(2_000_000).decode(r.headers.get_content_charset() or "utf-8", "replace")
+    except Exception as e:
+        return {"error": str(e)[:200]}
+    title = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+    body = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", page)
+    body = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body))).strip()
+    return {"title": html.unescape(title[1].strip()) if title else "", "og_image": meta(page, "og:image"),
+            "published": meta(page, "article:published_time"), "text": body[:PAGE_LIMIT]}
 
 
 def read(path):
@@ -74,15 +101,45 @@ Headlines of recent drafts (do not repeat these stories):
 {recent_headlines() or "(none)"}
 
 How to work:
-- Research with web_search / web_fetch. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
+- Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
 - Deliver posts only through the send_drafts tool, all in one call. Text is Telegram HTML (<b>, <i>, <a href>), no emoji, under 1000 characters.
 - Media: a direct JPG/PNG image URL that you saw on the source page (og:image is ideal; avoid .webp and .avif). If only the page itself has a good preview, use media_type "link" with the page URL. Otherwise media_type "none".
 - After send_drafts, finish with one short sentence for Nina (for example, what you found). If her message is not a request for posts, just answer it briefly without calling send_drafts.
 - Today is {now_msk()[:10]} (Moscow)."""
 
 
+def send_posts(posts, task):
+    ok = 0
+    for post in posts:
+        draft = {"text": post["text"], "media_type": post["media_type"],
+                 "media": post["media"] if post["media_type"] != "none" and post["media"] else None}
+        if task["kind"] == "edit" and draft["media"] == task.get("media"):
+            draft["media_type"] = task.get("media_type") or draft["media_type"]
+        try:
+            send(draft, task.get("day"))
+        except Exception as e:
+            print(f"send failed: {e}; retrying without media")
+            send({**draft, "media": None}, task.get("day"))
+        ok += 1
+    return ok
+
+
+def use_tool(tool_call, task):
+    """Run one tool call from the model; returns (result text, drafts sent)."""
+    try:
+        args = json.loads(tool_call.function.arguments or "{}")
+    except json.JSONDecodeError:
+        return "Error: arguments are not valid JSON.", 0
+    name = tool_call.function.name
+    if name == "fetch_page":
+        return json.dumps(fetch_page(str(args.get("url", ""))), ensure_ascii=False), 0
+    if name == "send_drafts":
+        ok = send_posts(args.get("posts", []), task)
+        return f"Sent {ok} drafts.", ok
+    return f"Error: unknown tool {name}.", 0
+
+
 def run(task):
-    client = anthropic.Anthropic()
     if task["kind"] == "edit":
         user = (f"Rewrite this draft according to Nina's notes and send the new version with send_drafts "
                 f"(one post). Keep the current media unless the notes ask to change it; current media: "
@@ -91,41 +148,21 @@ def run(task):
                 f"Nina's notes:\n{task['instructions']}")
     else:
         user = task["text"]
-    messages = [{"role": "user", "content": user}]
+    messages = [{"role": "system", "content": system_prompt()}, {"role": "user", "content": user}]
     sent = 0
     for _ in range(12):
-        with client.beta.messages.stream(
-            model=MODEL, max_tokens=32000, system=system_prompt(), tools=TOOLS, messages=messages,
-            output_config={"effort": "medium"},
-            betas=["server-side-fallback-2026-07-01"], fallbacks="default",
-        ) as stream:
-            response = stream.get_final_message()
-        if response.stop_reason == "refusal":
+        # Web search runs on every request it is on, so turn it off once the drafts are sent.
+        choice = polza.chat(messages, tools=TOOLS, web=not sent)
+        message = choice.message
+        if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
             return "Не получилось подготовить это, попробуй сформулировать иначе."
-        messages.append({"role": "assistant", "content": response.content})
-        if response.stop_reason == "pause_turn":
-            continue
-        tool_uses = [b for b in response.content if b.type == "tool_use"]
-        if not tool_uses:
-            return "".join(b.text for b in response.content if b.type == "text").strip()
-        results = []
-        for block in tool_uses:
-            posts = block.input.get("posts", []) if isinstance(block.input, dict) else []
-            ok = 0
-            for post in posts:
-                draft = {"text": post["text"], "media_type": post["media_type"],
-                         "media": post["media"] if post["media_type"] != "none" and post["media"] else None}
-                if task["kind"] == "edit" and draft["media"] == task.get("media"):
-                    draft["media_type"] = task.get("media_type") or draft["media_type"]
-                try:
-                    send(draft, task.get("day"))
-                except Exception as e:
-                    print(f"send failed: {e}; retrying without media")
-                    send({**draft, "media": None}, task.get("day"))
-                ok += 1
+        messages.append(polza.assistant_message(message))
+        if not message.tool_calls:
+            return polza.text(message)
+        for tool_call in message.tool_calls:
+            result, ok = use_tool(tool_call, task)
             sent += ok
-            results.append({"type": "tool_result", "tool_use_id": block.id, "content": f"Sent {ok} drafts."})
-        messages.append({"role": "user", "content": results})
+            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
     return "Готово." if sent else "Не успел закончить, попробуй ещё раз."
 
 

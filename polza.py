@@ -1,0 +1,56 @@
+"""Shared helpers for Polza AI (https://polza.ai/docs), an OpenAI-compatible gateway to many models.
+
+All AI calls of the bot go through here. The key comes only from the POLZA_API_KEY env var.
+"""
+import os
+
+from openai import OpenAI
+
+BASE_URL = "https://polza.ai/api/v1"
+MODEL = "anthropic/claude-sonnet-5.5"
+WEB = {"id": "web", "max_results": 8}  # web search plugin, works with any model
+
+_client = None
+
+
+def client():
+    global _client
+    if _client is None:
+        _client = OpenAI(base_url=BASE_URL, api_key=os.environ["POLZA_API_KEY"], timeout=300, max_retries=2)
+    return _client
+
+
+def function_tool(name, description, parameters, strict=True):
+    """A tool (function) definition in the Chat Completions format."""
+    return {"type": "function",
+            "function": {"name": name, "description": description, "parameters": parameters, "strict": strict}}
+
+
+def chat(messages, tools=None, web=False, model=MODEL, max_tokens=16000, **params):
+    """One Chat Completions request. Returns the first choice (.message, .finish_reason).
+
+    web=True turns on the web search plugin; found sources come back in message.annotations.
+    """
+    if tools:
+        params["tools"] = tools
+    extra = {"plugins": [WEB]} if web else None
+    response = client().chat.completions.create(
+        model=model, messages=messages, max_tokens=max_tokens, extra_body=extra, **params)
+    return response.choices[0]
+
+
+def assistant_message(message):
+    """The model's reply as a dict to append to `messages` for the next turn.
+
+    Keeps tool_calls and reasoning_details (needed by Claude models to continue after tool calls).
+    """
+    data = message.model_dump(exclude_none=True)
+    return {k: data[k] for k in ("role", "content", "tool_calls", "reasoning_details") if k in data}
+
+
+def text(message):
+    """Plain text of a reply (content can be a string, a list of parts or None)."""
+    content = message.content
+    if isinstance(content, list):
+        content = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
+    return (content or "").strip()

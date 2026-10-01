@@ -16,7 +16,7 @@ jobs:
       ADMIN_CHAT_ID: "813825039"
       CHANNEL_ID: "@delta24news"
       GITHUB_TOKEN: ${{ github.token }}
-      AI_ENABLED: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      AI_ENABLED: ${{ secrets.POLZA_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - run: python poll.py

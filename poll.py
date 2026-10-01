@@ -22,7 +22,7 @@ AI_ENABLED = os.environ.get("AI_ENABLED") == "true"
 QUEUE, PENDING, FEEDBACK = "queue.json", "pending.json", "feedback.md"
 TIME = re.compile(r"^\s*(\d{1,2})[:.](\d{2})\s*$")
 NO_AI = ("Пока я понимаю только кнопки под черновиками, ответ со временем (15:30) "
-         "и ответ с исправленным текстом. Писать новые посты научусь, когда подключат ключ Claude.")
+         "и ответ с исправленным текстом. Писать новые посты научусь, когда подключат ключ Polza AI.")
 
 
 def load(path, default):
