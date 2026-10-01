@@ -29,6 +29,8 @@ HELP = ("Черновики на {day}, постов: {n}. Нажми под п�
 def send(draft, day=None):
     text, media = draft["text"], draft.get("media")
     kind = draft.get("media_type", "photo")
+    if kind == "none":
+        media = None
     day = day or now_msk()[:10]
     buttons = draft_buttons(f"{day}T{draft.get('time', SLOTS[0])}")
     if media and kind != "link" and len(text) <= CAPTION_LIMIT:
