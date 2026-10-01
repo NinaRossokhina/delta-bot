@@ -5,6 +5,8 @@ Task kinds (JSON in the TASK env var):
   {"kind": "edit", "msg": 123, "html": "...", "media": "...", "media_type": "photo",
    "day": "2026-10-02", "instructions": "1. короче 2. другой заголовок"}  - rewrite a draft
   {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
+  {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
+                                         skipped if today's drafts exist
 New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
 committed by the workflow, which then runs send.yml for the new file.
 """
@@ -246,13 +248,37 @@ def daily():
     raise RuntimeError("no answer after 20 steps")
 
 
+FAILED_TODAY = "Сегодня черновики не собрались: {}"
+
+
+def drafts_exist(day):
+    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.)."""
+    return any(re.fullmatch(rf"{day}(-\d+)?\.json", name) for name in os.listdir("drafts")) if os.path.isdir("drafts") else False
+
+
+def reason(e):
+    """Why the daily run failed, in Russian, for Nina."""
+    import openai
+    if isinstance(e, openai.APIStatusError):
+        return f"Polza AI ответила ошибкой {e.status_code} ({str(e)[:200]})"
+    if isinstance(e, openai.APIConnectionError):
+        return "нет связи с Polza AI"
+    if isinstance(e, (json.JSONDecodeError, KeyError, TypeError)):
+        return "нейросеть вернула ответ не в том формате"
+    return str(e)[:300] or type(e).__name__
+
+
 def main():
-    task = json.loads(os.environ["TASK"])
+    task = json.loads(os.environ.get("TASK") or '{"kind": "daily", "scheduled": true}')
     if task["kind"] == "daily":
+        day = now_msk()[:10]
+        if task.get("scheduled") and drafts_exist(day):
+            print(f"drafts for {day} already exist, nothing to do")
+            return
         try:
             path = daily()
-        except Exception:
-            call("sendMessage", chat_id=ADMIN, text="Не получилось подготовить черновики на сегодня, попробуй запустить ещё раз.")
+        except Exception as e:
+            call("sendMessage", chat_id=ADMIN, text=FAILED_TODAY.format(reason(e)))
             raise
         print(f"saved {path}")
         if os.environ.get("GITHUB_OUTPUT"):

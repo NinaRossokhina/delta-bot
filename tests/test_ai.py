@@ -185,7 +185,30 @@ class AiTest(unittest.TestCase):
         os.environ["TASK"] = '{"kind": "daily"}'
         with self.assertRaises(Exception):
             ai.main()
-        self.assertIn("черновики на сегодня", self.calls[0][1]["text"])
+        self.assertEqual(self.calls[0][1]["text"], "Сегодня черновики не собрались: нейросеть вернула ответ не в том формате")
+
+    def test_scheduled_skips_when_drafts_exist(self):
+        os.mkdir("drafts")
+        open("drafts/2026-10-02-extra.json", "w").write("[]")  # not daily drafts
+        self.replies = [completion(json.dumps(self.daily_posts(5)))]
+        os.environ["TASK"] = ""  # the schedule passes no task
+        ai.main()
+        self.assertTrue(os.path.exists("drafts/2026-10-02.json"))
+        ai.main()  # second morning run: today's drafts are there
+        self.assertEqual(len(self.requests), 1)
+        self.assertFalse(os.path.exists("drafts/2026-10-02-2.json"))
+
+    def test_scheduled_polza_error_reason(self):
+        def handler(request):
+            return httpx.Response(402, json={"error": {"code": 402, "message": "Недостаточно средств"}})
+        bad = OpenAI(base_url=polza.BASE_URL, api_key="test-key", max_retries=0,
+                     http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+        os.environ["TASK"] = ""
+        with mock.patch("polza._client", bad), self.assertRaises(Exception):
+            ai.main()
+        text = self.calls[0][1]["text"]
+        self.assertTrue(text.startswith("Сегодня черновики не собрались: Polza AI ответила ошибкой 402"), text)
+        self.assertNotIn("test-key", text)
 
     def test_recent_headlines_last_4_days_only(self):
         os.mkdir("drafts")
