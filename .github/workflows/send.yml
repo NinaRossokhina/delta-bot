@@ -1,0 +1,27 @@
+name: Send drafts
+on:
+  push:
+    branches: [main]
+    paths: ["drafts/*.json"]
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "Draft file, e.g. drafts/2026-10-01.json"
+        required: true
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Send new draft files
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_CHAT_ID: "813825039"
+          INPUT_FILE: ${{ github.event.inputs.file }}
+        run: |
+          if [ -n "$INPUT_FILE" ]; then files="$INPUT_FILE"
+          else files=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'drafts/*.json'); fi
+          for f in $files; do echo "== $f"; python send_drafts.py "$f"; done
