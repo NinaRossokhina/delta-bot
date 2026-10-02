@@ -1,0 +1,24 @@
+name: Channel voice
+on:
+  workflow_dispatch:  # run by hand after updating style/result.json
+permissions:
+  contents: write
+jobs:
+  style:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q openai
+      - run: python style/build_style.py
+      - run: python style/analyze_style.py
+        env:
+          POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+      - run: |
+          git add style/posts.txt style/my-voice.md style/examples.md
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Update channel voice (style/)"
+          ok=
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
+          [ -n "$ok" ]
