@@ -19,10 +19,7 @@ jobs:
       AI_ENABLED: ${{ secrets.POLZA_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -q openai  # for voice messages (polza.py)
       - run: python poll.py
-        env:
-          POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
       - name: Save the queue
         run: |
           git add queue.json pending.json feedback.md

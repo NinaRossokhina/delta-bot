@@ -4,6 +4,9 @@ Task kinds (JSON in the TASK env var):
   {"kind": "chat", "text": "пришли 2 новые новости"}  - Nina's free-form request
   {"kind": "edit", "msg": 123, "html": "...", "media": "...", "media_type": "photo",
    "day": "2026-10-02", "instructions": "1. короче 2. другой заголовок"}  - rewrite a draft
+  {"kind": "voice", "file_id": "...", "mime": "audio/ogg"}  - Nina's voice or audio message: transcribe it
+   and send her the text; with "edit": {...edit task without instructions} it is her answer to
+   «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
   {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
                                          skipped if today's drafts exist
@@ -22,7 +25,7 @@ from datetime import date, timedelta
 
 from schedule import SLOTS, draft_buttons, now_msk
 from send_drafts import send
-from tg import call
+from tg import call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
 
@@ -256,9 +259,26 @@ def drafts_exist(day):
     return any(re.fullmatch(rf"{day}(-\d+)?\.json", name) for name in os.listdir("drafts")) if os.path.isdir("drafts") else False
 
 
+TIMEOUT = "Polza AI не ответила вовремя. Попробуй ещё раз чуть позже."
+NOT_HEARD = "Не расслышала слов в голосовом. Попробуй ещё раз или напиши текстом."
+NO_MONEY = "На балансе Polza AI закончились деньги. Пополни счёт на polza.ai, и я снова смогу работать."
+
+
+def problem(e):
+    """A clear message for Nina about a known failure (timeout, no money on Polza), else None."""
+    import openai
+    if isinstance(e, (openai.APITimeoutError, TimeoutError)) or isinstance(getattr(e, "reason", None), TimeoutError):
+        return TIMEOUT
+    if isinstance(e, openai.APIStatusError) and e.status_code == 402:
+        return NO_MONEY
+    return None
+
+
 def reason(e):
     """Why the daily run failed, in Russian, for Nina."""
     import openai
+    if problem(e):
+        return problem(e)
     if isinstance(e, openai.APIStatusError):
         return f"Polza AI ответила ошибкой {e.status_code} ({str(e)[:200]})"
     if isinstance(e, openai.APIConnectionError):
@@ -266,6 +286,29 @@ def reason(e):
     if isinstance(e, (json.JSONDecodeError, KeyError, TypeError)):
         return "нейросеть вернула ответ не в том формате"
     return str(e)[:300] or type(e).__name__
+
+
+def save_reason(title, text):
+    with open("feedback.md", "a", encoding="utf-8") as f:
+        f.write(f"- {now_msk()[:10]} «{title}»: {text}\n")
+
+
+class NotHeard(Exception):
+    pass
+
+
+def voice(task):
+    """Transcribe Nina's voice message and act on it; returns the final message for her."""
+    text = polza.transcribe(download(task["file_id"]), task.get("mime") or "audio/ogg")
+    if not text:
+        raise NotHeard()
+    call("sendMessage", chat_id=ADMIN, text=f"Расшифровка:\n{text}")
+    if task.get("edit"):
+        return run({**task["edit"], "instructions": text})
+    if task.get("reason"):
+        save_reason(task["reason"], text)
+        return "Записала причину, учту в следующих постах."
+    return None
 
 
 def main():
@@ -285,16 +328,20 @@ def main():
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"file={path}\n")
         return
+    edit = task if task["kind"] == "edit" else task.get("edit")
     try:
-        answer = run(task)
-    except Exception:
-        call("sendMessage", chat_id=ADMIN, text="Что-то пошло не так, попробуй ещё раз чуть позже.")
-        if task["kind"] == "edit":  # give the old draft its buttons back
-            call("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"],
-                 reply_markup=draft_buttons(f"{task['day']}T09:00"))
+        answer = voice(task) if task["kind"] == "voice" else run(task)
+    except Exception as e:
+        text = NOT_HEARD if isinstance(e, NotHeard) else problem(e) or "Что-то пошло не так, попробуй ещё раз чуть позже."
+        call("sendMessage", chat_id=ADMIN, text=text)
+        if edit:  # give the old draft its buttons back
+            call("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
+                 reply_markup=draft_buttons(f"{edit['day']}T09:00"))
+        if isinstance(e, NotHeard):
+            return
         raise
-    if task["kind"] == "edit":
-        call("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"],
+    if edit:
+        call("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
              reply_markup={"inline_keyboard": [[{"text": "✏️ Новая версия ниже", "callback_data": "done"}]]})
     if answer:
         call("sendMessage", chat_id=ADMIN, text=answer)

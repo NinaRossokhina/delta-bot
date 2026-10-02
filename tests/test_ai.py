@@ -207,7 +207,7 @@ class AiTest(unittest.TestCase):
         with mock.patch("polza._client", bad), self.assertRaises(Exception):
             ai.main()
         text = self.calls[0][1]["text"]
-        self.assertTrue(text.startswith("Сегодня черновики не собрались: Polza AI ответила ошибкой 402"), text)
+        self.assertEqual(text, ai.FAILED_TODAY.format(ai.NO_MONEY))
         self.assertNotIn("test-key", text)
 
     def test_recent_headlines_last_4_days_only(self):
@@ -226,10 +226,74 @@ class AiTest(unittest.TestCase):
         self.replies = [{"text": " Пришли новость про роботов ", "language": "ru", "duration": 2.5}]
         self.assertEqual(polza.transcribe(b"OggS-voice"), "Пришли новость про роботов")
         r = self.requests[0]
-        self.assertEqual(r.url, "https://polza.ai/api/v1/audio/transcriptions")
+        self.assertEqual(str(r.url), "https://polza.ai/api/v1/audio/transcriptions")
         self.assertEqual(r.headers["authorization"], "Bearer test-key")
-        self.assertEqual(json.loads(r.content), {"model": "openai/gpt-4o-transcribe",
+        self.assertEqual(json.loads(r.content), {"model": "openai/whisper-large-v3-turbo",
                                                  "file": "data:audio/ogg;base64,T2dnUy12b2ljZQ==", "language": "ru"})
+
+    def test_transcribe_converts_to_mp3_if_ogg_rejected(self):
+        self.replies = [{"error": {"message": "unsupported format"}}, {"text": "ок"}]
+        statuses = [400, 200]
+        def handler(request):
+            self.requests.append(request)
+            return httpx.Response(statuses.pop(0), json=self.replies.pop(0))
+        polza._client._client = httpx.Client(transport=httpx.MockTransport(handler))
+        with mock.patch("polza.to_mp3", return_value=b"ID3") as conv:
+            self.assertEqual(polza.transcribe(b"OggS"), "ок")
+        conv.assert_called_once_with(b"OggS")
+        self.assertEqual(json.loads(self.requests[1].content)["file"], "data:audio/mpeg;base64,SUQz")
+
+    def voice_task(self, **extra):
+        os.environ["TASK"] = json.dumps({"kind": "voice", "file_id": "F1", "mime": "audio/ogg", **extra})
+        with mock.patch("ai.download", return_value=b"OggS") as dl:
+            ai.main()
+        dl.assert_called_once_with("F1")
+
+    def texts(self): return [p["text"] for m, p in self.calls if m == "sendMessage"]
+
+    def test_voice_sends_transcript(self):
+        self.replies = [{"text": "Пришли новость про роботов"}]
+        self.voice_task()
+        self.assertEqual(self.texts(), ["Расшифровка:\nПришли новость про роботов"])
+
+    def test_voice_answer_to_edit_rewrites_draft(self):
+        self.replies = [{"text": "сделай короче"},
+                        completion(tool_calls=[("send_drafts", {"posts": [POST]})]), completion("Готово, сократила.")]
+        self.voice_task(edit={"kind": "edit", "msg": 7, "html": "<b>Старый</b>", "media": None,
+                              "media_type": None, "day": "2026-10-03"})
+        self.assertEqual(self.texts(), ["Расшифровка:\nсделай короче", "Готово, сократила."])
+        self.assertIn("Nina's notes:\nсделай короче", self.bodies()[1]["messages"][1]["content"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("Новая версия ниже", str(self.calls))
+
+    def test_voice_reason_goes_to_feedback(self):
+        self.replies = [{"text": "слишком сложно"}]
+        self.voice_task(reason="Термояд")
+        self.assertEqual(open("feedback.md", encoding="utf-8").read().splitlines()[-1],
+                         "- 2026-10-02 «Термояд»: слишком сложно")
+
+    def test_voice_nothing_heard_restores_draft(self):
+        self.replies = [{"text": ""}]
+        self.voice_task(edit={"kind": "edit", "msg": 7, "html": "x", "day": "2026-10-03"})
+        self.assertEqual(self.texts(), [ai.NOT_HEARD])
+        self.assertIn("at:2026-10-03T09:00", str(self.calls[-1]))
+
+    def test_no_money_and_timeout_messages(self):
+        import openai
+        resp = httpx.Response(402, request=httpx.Request("POST", "https://polza.ai/api/v1/x"))
+        self.assertEqual(ai.problem(openai.APIStatusError("Payment required", response=resp, body=None)), ai.NO_MONEY)
+        self.assertEqual(ai.problem(openai.APITimeoutError(request=resp.request)), ai.TIMEOUT)
+        self.assertEqual(ai.problem(TimeoutError()), ai.TIMEOUT)
+        self.assertIsNone(ai.problem(ValueError()))
+
+    def test_voice_no_money_told_to_nina(self):
+        def handler(request):
+            return httpx.Response(402, json={"error": {"message": "Insufficient balance"}})
+        polza._client._client = httpx.Client(transport=httpx.MockTransport(handler))
+        polza._client.max_retries = 0
+        with self.assertRaises(Exception):
+            self.voice_task()
+        self.assertEqual(self.texts(), [ai.NO_MONEY])
 
 
 if __name__ == "__main__":

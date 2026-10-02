@@ -136,42 +136,47 @@ class PollTest(unittest.TestCase):
         self.message(text="пришли 2 новости про роботов")
         self.assertEqual(self.tasks, [{"kind": "chat", "text": "пришли 2 новости про роботов"}])
 
-    def voice(self, heard="сделай короче", **extra):
-        with mock.patch("poll.download", return_value=b"OggS") as dl, \
-             mock.patch("polza.transcribe", return_value=heard) as tr:
-            self.message(voice={"file_id": "F1", "mime_type": "audio/ogg", "duration": 3}, **extra)
-        return dl, tr
+    def voice(self, **extra):
+        self.message(voice={"file_id": "F1", "mime_type": "audio/ogg", "duration": 3}, **extra)
 
-    def test_voice_answer_to_edit(self):
+    def test_voice_request_starts_voice_task(self):
+        self.ai_on()
+        self.voice()
+        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "F1", "mime": "audio/ogg"}])
+        self.assertEqual(self.asked(), ["Получила, работаю над постом"])
+
+    def test_audio_file_too(self):
+        self.ai_on()
+        self.message(audio={"file_id": "A1", "mime_type": "audio/mpeg"})
+        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "A1", "mime": "audio/mpeg"}])
+
+    def test_voice_answer_to_edit_is_the_edit(self):
         self.ai_on()
         self.button(10, "edit")
-        dl, tr = self.voice(reply_to_message={"message_id": 99})
-        dl.assert_called_once_with("F1"); tr.assert_called_once_with(b"OggS", "audio/ogg")
-        self.assertEqual(self.tasks[0]["instructions"], "сделай короче")
+        self.voice(reply_to_message={"message_id": 99})
+        task = self.tasks[0]
+        self.assertEqual((task["kind"], task["edit"]["kind"], task["edit"]["msg"], task["edit"]["day"]),
+                         ("voice", "edit", 10, "2026-10-02"))
+        self.assertNotIn("asked", task["edit"])
+        self.assertEqual(self.bot.pending, {})
+        self.assertIn("Переписываю", str([p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]))
 
-    def test_voice_reason_goes_to_feedback(self):
+    def test_voice_reply_to_draft_is_an_edit(self):
+        self.ai_on()
+        self.voice(reply_to_message=draft(10))
+        self.assertEqual(self.tasks[0]["edit"]["msg"], 10)
+
+    def test_voice_answer_to_why_is_the_reason(self):
         self.ai_on()
         self.button(10, "rej")
-        self.voice("слишком сложно")
-        self.assertIn("«Заголовок»: слишком сложно", open("feedback.md", encoding="utf-8").read())
+        self.voice()
+        self.assertEqual(self.tasks[0]["reason"], "Заголовок")
 
-    def test_voice_request_goes_to_ai(self):
-        self.ai_on()
-        self.voice("пришли новость про роботов")
-        self.assertEqual(self.tasks, [{"kind": "chat", "text": "пришли новость про роботов"}])
-
-    def test_voice_not_heard_keeps_question_open(self):
-        self.ai_on()
+    def test_voice_without_ai_keeps_question(self):
         self.button(10, "edit")
-        with mock.patch("poll.download", side_effect=RuntimeError("getFile: boom")):
-            self.message(voice={"file_id": "F1"})
-        self.assertEqual(self.asked()[-1], poll.NOT_HEARD)
+        self.voice()
+        self.assertEqual(self.asked()[-1], poll.NO_AI)
         self.assertIn("99", self.bot.pending)
-        self.assertEqual(self.tasks, [])
-
-    def test_voice_without_ai(self):
-        self.message(voice={"file_id": "F1"})
-        self.assertEqual(self.asked(), [poll.NO_AI])
 
 
 if __name__ == "__main__":

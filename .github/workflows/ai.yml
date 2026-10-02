@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install -q openai
+      # ffmpeg converts voice messages to mp3 if Polza does not take ogg (usually preinstalled)
+      - if: contains(github.event.inputs.task, '"voice"')
+        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
       - id: ai
         run: python ai.py
         env:
@@ -25,6 +28,15 @@ jobs:
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
+      # A voice answer to «Почему?» adds a line to feedback.md
+      - if: always() && steps.ai.outcome != 'skipped'
+        run: |
+          git add feedback.md
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Feedback from a voice message"
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          exit 1
       # Daily drafts: commit the new file, then start send.yml for it
       # (a push made with GITHUB_TOKEN does not trigger other workflows by itself).
       - if: steps.ai.outputs.file != ''

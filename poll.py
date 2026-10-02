@@ -14,7 +14,7 @@ import urllib.request
 
 from drafthtml import to_html
 from schedule import draft_buttons, now_msk, scheduled_buttons
-from tg import call, download
+from tg import call
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
 CHANNEL = os.environ["CHANNEL_ID"]  # e.g. @delta24news
@@ -23,7 +23,7 @@ QUEUE, PENDING, FEEDBACK = "queue.json", "pending.json", "feedback.md"
 TIME = re.compile(r"^\s*(\d{1,2})[:.](\d{2})\s*$")
 NO_AI = ("Пока я понимаю только кнопки под черновиками, ответ со временем (15:30) "
          "и ответ с исправленным текстом. Писать новые посты и слушать голосовые научусь, когда подключат ключ Polza AI.")
-NOT_HEARD = "Не получилось разобрать голосовое, попробуй ещё раз или напиши текстом."
+GOT_VOICE = "Получила, работаю над постом"
 
 
 def load(path, default):
@@ -102,24 +102,16 @@ class Bot:
                 "Можно написать, например: «пришли 2 новые новости» или «сделай пост про новый iPhone».")
             return
         voice = msg.get("voice") or msg.get("audio")
-        if voice and not text:
-            if not AI_ENABLED:
-                say(NO_AI)
-                return
-            text = self.hear(voice)
-            if not text:
-                say(NOT_HEARD)
-                return
-            msg = {**msg, "text": text, "entities": []}
-        if not text:
+        if not text and not voice:
+            return
+        if voice and not AI_ENABLED:
+            say(NO_AI)
             return
         target = msg.get("reply_to_message")
-        about = None
-        if target and str(target["message_id"]) in self.pending:
-            about = self.pending.pop(str(target["message_id"]))
-        elif not target and self.pending and self.recent(list(self.pending.values())[-1]):
-            # Answered right away without tapping "reply": take the most recent open question.
-            about = self.pending.pop(list(self.pending)[-1])
+        about = self.answered(target)
+        if voice:
+            self.on_voice(voice, about, target, msg)
+            return
         if about and about["kind"] == "reason":
             self.save_reason(about, text)
             react(msg)
@@ -132,15 +124,30 @@ class Bot:
         else:
             say(NO_AI)
 
-    @staticmethod
-    def hear(voice):
-        """Text of a voice message via Polza speech to text; empty string if it failed."""
-        try:
-            import polza  # needs the openai package and POLZA_API_KEY, only when a voice comes
-            return polza.transcribe(download(voice["file_id"]), voice.get("mime_type") or "audio/ogg")
-        except Exception as e:
-            print(f"could not transcribe a voice message: {e!r}")
-            return ""
+    def answered(self, target):
+        """The open question this message answers (taken out of pending), or None."""
+        if target and str(target["message_id"]) in self.pending:
+            return self.pending.pop(str(target["message_id"]))
+        if not target and self.pending and self.recent(list(self.pending.values())[-1]):
+            # Answered right away without tapping "reply": take the most recent open question.
+            return self.pending.pop(list(self.pending)[-1])
+        return None
+
+    def on_voice(self, voice, about, target, msg):
+        """Voice or audio: ai.py downloads and transcribes it (task "voice"). An answer to
+        «Что поправить?» (or a voice reply to a draft) becomes the edit, to «Почему?» the reason."""
+        task = {"kind": "voice", "file_id": voice["file_id"], "mime": voice.get("mime_type") or "audio/ogg"}
+        if not about and target and self.is_open_draft(target):
+            about = self.draft_info(target)
+        if about and about["kind"] == "edit":
+            task["edit"] = {k: v for k, v in about.items() if k != "asked"}
+        elif about and about["kind"] == "reason":
+            task["reason"] = about["title"]
+        if not self.ai(task, msg):
+            return
+        say(GOT_VOICE)
+        if "edit" in task:
+            mark(task["edit"]["msg"], "✏️ Переписываю…")
 
     @staticmethod
     def recent(about):

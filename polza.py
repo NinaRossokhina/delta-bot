@@ -4,7 +4,9 @@ All AI calls of the bot go through here. The key comes only from the POLZA_API_K
 """
 import base64
 import os
+import subprocess
 
+import openai
 from openai import OpenAI
 
 BASE_URL = "https://polza.ai/api/v1"
@@ -62,13 +64,30 @@ def text(message):
     return (content or "").strip()
 
 
-TRANSCRIBE_MODEL = "openai/gpt-4o-transcribe"
+
+TRANSCRIBE_MODEL = "openai/whisper-large-v3-turbo"
 
 
 def transcribe(audio, mime="audio/ogg", language="ru", model=TRANSCRIBE_MODEL):
     """Speech to text (POST /audio/transcriptions). `audio` is the file's bytes (mp3, wav, m4a, flac,
-    ogg or webm, up to 25 MB); it goes as a base64 data URL in the JSON body, as the docs show."""
+    ogg or webm, up to 25 MB); it goes as a base64 data URL in the JSON body, as the docs show.
+    If Polza rejects the format (Telegram voices are ogg/opus), it is converted to mp3 with ffmpeg."""
+    try:
+        return _transcribe(audio, mime, language, model)
+    except (openai.BadRequestError, openai.UnprocessableEntityError):
+        if mime == "audio/mpeg":
+            raise
+        return _transcribe(to_mp3(audio), "audio/mpeg", language, model)
+
+
+def _transcribe(audio, mime, language, model):
     file = f"data:{mime};base64,{base64.b64encode(audio).decode()}"
     result = client().post("/audio/transcriptions", cast_to=object,
                            body={"model": model, "file": file, "language": language})
     return (result.get("text") or "").strip()
+
+
+def to_mp3(audio):
+    """Convert any audio ffmpeg understands to mp3 (ffmpeg is installed by the ai.yml workflow)."""
+    return subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-f", "mp3", "pipe:1"],
+                          input=audio, capture_output=True, check=True, timeout=120).stdout
