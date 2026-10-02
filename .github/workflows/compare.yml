@@ -1,0 +1,55 @@
+name: Compare models
+# Voice posts by two models on the same transcripts (compare_models.py). Runs on pushes to the
+# compare-models branch. The repository is public, so inputs and results are committed encrypted:
+#  1. no compare/runner.pub yet: make the runner's key pair, keep the private key in the Actions
+#     cache (not public), commit the public key;
+#  2. compare/voices.* (sealed with runner.pub): decrypt, transcribe, write posts with each model,
+#     seal the results with compare/reader.pub (the reader's public key) as compare/results.*.
+on:
+  push:
+    branches: [compare-models]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: compare
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        id: key
+        with:
+          path: .runner.pem
+          key: compare-runner-key-v1
+      - name: Make the runner key
+        if: steps.key.outputs.cache-hit != 'true'
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out .runner.pem
+          openssl pkey -in .runner.pem -pubout -out compare/runner.pub
+      - if: steps.key.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .runner.pem
+          key: compare-runner-key-v1
+      - name: Compare
+        if: hashFiles('compare/voices.key') != ''
+        run: |
+          pip install -q openai
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          bash compare/crypt.sh open .runner.pem compare/voices /tmp/voices
+          mkdir -p /tmp/results
+          python compare_models.py /tmp/voices /tmp/results/results.json
+          bash compare/crypt.sh seal compare/reader.pub /tmp/results compare/results
+        env:
+          POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+          ADMIN_CHAT_ID: "813825039"
+          TELEGRAM_BOT_TOKEN: unused
+      - name: Commit
+        run: |
+          git add compare/
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Compare models: runner key / results"
+          git push -q origin HEAD:compare-models
