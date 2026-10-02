@@ -149,7 +149,11 @@ class CheckTest(unittest.TestCase):
         with mock.patch("hot.rate", side_effect=RuntimeError("Polza: empty answer")):
             hot.check(SOURCES, fetch)
         self.assertNotIn("OpenAI:gpt-6", hot.load(hot.SEEN, {}))
-        self.assertEqual(self.calls, [])  # not worth bothering Nina every few minutes
+        self.assertEqual(self.calls, [])  # one blip is not worth a message
+        with mock.patch("hot.rate", side_effect=RuntimeError("Polza: empty answer")):
+            hot.check(SOURCES, fetch); hot.check(SOURCES, fetch); hot.check(SOURCES, fetch)
+        self.assertEqual(len(self.calls), 1)  # the third failure in a row is reported, once a day
+        self.assertIn("не работает", self.calls[0][1]["text"])
 
     def test_writing_failure_is_reported_once(self):
         self.remember_all_but("OpenAI:gpt-6")

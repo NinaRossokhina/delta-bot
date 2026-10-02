@@ -30,7 +30,7 @@ from tg import call
 
 STATE = ".hot"  # restored from and saved to the Actions cache by hot.yml
 SEEN = f"{STATE}/seen.json"  # {item id: "YYYY-MM-DDTHH:MM" first seen}
-NOTES = f"{STATE}/notes.json"  # {"no_money": "YYYY-MM-DD"}: problems already reported today
+NOTES = f"{STATE}/notes.json"  # {"fails": rating failures in a row, "broken": "YYYY-MM-DD" when reported}
 PENDING_COSTS = f"{STATE}/costs.jsonl"  # prices of the cheap requests, moved to costs.jsonl now and then
 CHEAP_MODEL = "anthropic/claude-haiku-4.5"
 HOT_MIN = 8  # score 1-10 from the cheap model; only a story everyone is talking about gets 8+
@@ -76,6 +76,7 @@ Scale:
 - 7-8: important news of a big company that many tech media will cover today, but not a global event.
 - 1-6: everything else: customer stories, small updates, research papers, opinion pieces, events, hiring, funding of small startups.
 - Score 3 or less for negative stories (scandals, lawsuits, layoffs, outages, safety incidents): the channel is positive only.
+If several items are about the same story, give its score only to the best one (the official announcement first) and 1 to the others.
 covered = true if the same story (same launch, even in other words or in Russian) is among the recent drafts.
 
 Recent drafts of the channel:
@@ -106,6 +107,8 @@ Return JSON in the given format (not through send_drafts: the bot sends it itsel
 INTRO = ("🔥 Срочная новость, её сейчас обсуждают все. Нажми «Сейчас», чтобы выпустить пост сразу, "
          "или выбери время.")
 FAILED = "Нашла срочную новость «{}», но пост не собрался: {}"
+BROKEN = "Поиск срочных новостей сейчас не работает: {}"
+FAILS_TO_REPORT = 3  # rating failures in a row before Nina hears about it (one blip is not worth a message)
 
 
 def load(path, default):
@@ -332,10 +335,12 @@ def check(sources=SOURCES, fetch=get):
             scores = rate(new)
         except Exception as e:
             print(f"rating failed: {type(e).__name__} {str(e)[:200]}")  # the items stay new, tried again next run
-            if ai.problem(e) == ai.NO_MONEY:
-                report_once(notes, "no_money", ai.NO_MONEY)
+            notes["fails"] = notes.get("fails", 0) + 1
+            if notes["fails"] >= FAILS_TO_REPORT:
+                report_once(notes, "broken", BROKEN.format(ai.reason(e)))
             scores = None
         if scores is not None:
+            notes["fails"] = 0
             for x in new:
                 seen[x["id"]] = stamp
             hot = sorted(((s, i) for i, (s, covered) in scores.items() if s >= HOT_MIN and not covered), reverse=True)
