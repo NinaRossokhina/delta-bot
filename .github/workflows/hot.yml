@@ -1,0 +1,37 @@
+name: Hot news
+on:
+  schedule:
+    - cron: "*/10 * * * *"  # a backup: the Cloudflare worker starts it every 5 minutes (GitHub's schedule can be late)
+  workflow_dispatch:
+concurrency: hot
+permissions:
+  contents: write
+jobs:
+  hot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # What was already seen lives in the Actions cache, not in the repo (no commit every few minutes)
+      - uses: actions/cache/restore@v4
+        with:
+          path: .hot
+          key: hot-state-${{ github.run_id }}
+          restore-keys: hot-state-
+      - run: pip install -q openai
+      - id: hot
+        run: python hot.py
+        env:
+          POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_CHAT_ID: "813825039"
+      - if: always() && hashFiles('.hot/*') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .hot
+          key: hot-state-${{ github.run_id }}-${{ github.run_attempt }}
+      # A hot draft (so the daily drafts do not repeat it) and the prices of the requests (for /cost)
+      - if: always() && steps.hot.outputs.save == 'true'
+        env:
+          FILES: ${{ steps.hot.outputs.files }}
+        run: bash save_state.sh "Hot news" costs.jsonl $FILES

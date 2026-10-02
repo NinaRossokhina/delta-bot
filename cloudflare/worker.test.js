@@ -94,3 +94,22 @@ test("opening the URL shows the result", async () => {
   const r = await worker.fetch(new Request("https://x/"), env);
   assert.equal(await r.text(), "idle\n");
 });
+
+test("hot news starts every 5 minutes only", async () => {
+  const { hotTick } = await import("./worker.js");
+  let calls = stub();
+  assert.equal(await hotTick(env, Date.parse("2026-10-02T17:10:00Z")), "hot news: started");
+  const d = calls.find(c => c.url.endsWith("/actions/workflows/hot.yml/dispatches"));
+  assert.equal(d.method, "POST");
+  assert.equal(d.headers.Authorization, "Bearer gh");
+  calls = stub();
+  assert.equal(await hotTick(env, Date.parse("2026-10-02T17:11:00Z")), null);
+  assert.equal(calls.length, 0);
+});
+
+test("hot news dispatch error is reported without the token", async () => {
+  const { hotTick } = await import("./worker.js");
+  stub({ dispatchStatus: 404 });
+  const out = await hotTick(env, Date.parse("2026-10-02T17:15:00Z"));
+  assert.match(out, /^hot news: error 404/);
+});

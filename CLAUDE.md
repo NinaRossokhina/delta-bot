@@ -13,6 +13,7 @@ Telegram-бот канала @delta24news: присылает Нине черн�
 - Состояние коммитит `save_state.sh` (повтор с rebase). `feedback.md`, `costs.jsonl`, `images.jsonl` только дописываются строками и склеиваются `merge=union` (`.gitattributes`): параллельные запуски `ai.yml` не конфликтуют. `ai.py` сам останавливает задачу через 16 минут (`Deadline`) и говорит Нине.
 - Тесты на заглушках, без сети: `pip install openai`, затем `python -m unittest discover -s tests -v`.
 - `cloudflare/worker.js` — «дверной звонок» на Cloudflare Workers (cron каждую минуту запускает `poll.yml`, если есть новые обновления или пост по времени; обновления только подсматривает, без `offset`). Настройка: `cloudflare/README.md`, тесты: `node --test cloudflare/worker.test.js`.
+- `hot.py` (workflow `hot.yml`, воркер запускает раз в 5 минут, расписание GitHub раз в 10 как запасное) — срочные новости: бесплатно читает `SOURCES` (блоги лабораторий, Techmeme, Hacker News от `HN_POINTS`), новые заголовки оценивает одним запросом `CHEAP_MODEL` (Haiku), только для оценки от `HOT_MIN` основная модель с веб-поиском пишет пост → черновик через `send_drafts.send` и `drafts/<дата>-hot.json`. Увиденное — в `.hot/` в кэше Actions (не в репозитории; первый запуск без кэша только запоминает). Цены дешёвых запросов копятся в `.hot/costs.jsonl` и переносятся в `costs.jsonl` с постом или раз в 6 часов, чтобы не коммитить каждые 5 минут.
 
 ## Правила
 - Ключи и токены только из переменных окружения (`POLZA_API_KEY`, `TELEGRAM_BOT_TOKEN`, секреты GitHub). Не писать их в код, не печатать в логи и в ответы.

@@ -1,6 +1,7 @@
 // Delta bot "doorbell" for Cloudflare Workers (free plan).
 // Every minute it checks whether Nina wrote to the bot / pressed a button, or a scheduled
 // post is due, and if so starts the "Publish approved posts" workflow (poll.yml) right away.
+// Every 5 minutes it also starts "Hot news" (hot.yml), the search for breaking AI news.
 // Setup for beginners: cloudflare/README.md.
 // Secrets (Settings -> Variables and Secrets): TELEGRAM_BOT_TOKEN, GITHUB_TOKEN.
 // Trigger (Settings -> Trigger events -> Cron Triggers): * * * * *
@@ -71,9 +72,27 @@ export async function tick(env) {
   }
 }
 
+// Hot news (hot.yml) every HOT_EVERY_MIN minutes: GitHub's own schedule is often late by 10-20 minutes.
+// Returns null when it is not the time.
+export const HOT_EVERY_MIN = 5;
+
+export async function hotTick(env, ms = Date.now()) {
+  if (!env.GITHUB_TOKEN || new Date(ms).getUTCMinutes() % HOT_EVERY_MIN !== 0) return null;
+  try {
+    const r = await github(env, "/actions/workflows/hot.yml/dispatches", {
+      method: "POST", body: JSON.stringify({ ref: "main" }),
+    });
+    return r.ok ? "hot news: started" : redact(`hot news: error ${r.status} ${await r.text()}`, env);
+  } catch (e) {
+    return redact(`hot news: error ${e.message}`, env);
+  }
+}
+
 export default {
   async scheduled(event, env, ctx) {
     console.log(await tick(env));
+    const hot = await hotTick(env, event.scheduledTime);
+    if (hot) console.log(hot);
   },
   // Opening the worker's URL runs one check and shows the result (handy for testing).
   async fetch(request, env) {
