@@ -1,1 +1,11 @@
-{}
+{
+ "76": {
+  "kind": "edit",
+  "msg": 74,
+  "html": "<b>Тире больше не выдаёт нейротекст. Теперь выдаёт «это важно»</b>\n\nНейросети отучили от длинного тире: Opus 5.5 ставит его на 99% реже, чем Opus 5. Но привычки просто переехали. Теперь Opus при каждом удобном случае объясняет, почему что-то важно: «this matters» у него в 116 раз чаще, чем у людей.\n\nGPT-6 Astra вечно включает скептика: конструкции вроде «это не просто…» у неё чаще более чем в 100 раз. Исследователи Graphite нашли 13 тысяч таких маркеров, <a href=\"https://techcrunch.com/2026/10/01/opus-5-5-loves-to-tell-you-this-matters-and-other-ai-writing-tells/\">пишет TechCrunch</a>. Claude при этом пишет всё ближе к человеку, а GPT всё дальше.",
+  "media": "AgACAgQAAxkDAANKasAFAdK-aYR0wDum_mwql9uDx8IAAkO1MRv6t5RQ4NqS2L4Hn4oBAAMCAAN5AAM9BA",
+  "media_type": "photo",
+  "day": "2026-10-02",
+  "asked": "2026-10-02T22:30"
+ }
+}
