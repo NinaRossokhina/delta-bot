@@ -140,7 +140,7 @@ class AiTest(unittest.TestCase):
         self.assertIn("error", ai.fetch_page("file:///etc/passwd"))
 
     def daily_posts(self, n=7):
-        rubrics = ["news_of_the_day", "research", "useful_find", "news_of_the_day", "good_news", "humor", "research"][:n]
+        rubrics = ["news_of_the_day", "research", "useful_find", "news_of_the_day", "good_news", "humor", "research"][:n] + ["digest"]
         return {"posts": [{"rubric": r, "text": f"<b>Пост {i}</b>\n\nТекст <a href='https://src/{i}'>источник</a>",
                            "image": f"https://img/{i}.jpg", "source": f"https://src/{i}"} for i, r in enumerate(rubrics)]}
 
@@ -158,8 +158,8 @@ class AiTest(unittest.TestCase):
         rt.assert_called_once_with(7)
         self.assertEqual(open(out).read(), "file=drafts/2026-10-02.json\n")
         drafts = json.load(open("drafts/2026-10-02.json", encoding="utf-8"))
-        self.assertEqual([d["time"] for d in drafts], times)  # the model's order: most relevant first
-        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(7)])
+        self.assertEqual([d["time"] for d in drafts], times + ["22:00"])  # the model's order: most relevant first
+        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(8)])  # 7: the digest
         self.assertEqual(drafts[0], {"text": "<b>Пост 0</b>\n\nТекст <a href='https://src/0'>источник</a>",
                                      "media": "https://img/0.jpg", "media_type": "photo", "time": "09:20",
                                      "suggested": True})
@@ -174,19 +174,23 @@ class AiTest(unittest.TestCase):
         self.assertIn("exactly 7", task)
         self.assertIn("artificial intelligence", task)
         self.assertIn("by relevance", task)
+        self.assertIn("digest", task)
         self.assertEqual(self.sent, [])  # sending is send.yml's job
         self.assertEqual(self.calls, [])
 
     def test_daily_does_not_overwrite_and_caps_at_7(self):
         os.mkdir("drafts")
         open("drafts/2026-10-02.json", "w").write("[]")
-        self.replies = [completion(json.dumps({"posts": self.daily_posts()["posts"] * 2}))]
+        posts = self.daily_posts()["posts"]
+        self.replies = [completion(json.dumps({"posts": [posts[-1]] + posts[:-1] * 2}))]  # the digest first
         path = ai.daily()
         self.assertEqual(path, "drafts/2026-10-02-2.json")
         drafts = json.load(open(path))
-        self.assertEqual(len(drafts), 7)
+        self.assertEqual(len(drafts), 8)
         self.assertTrue(drafts[0]["text"].startswith("<b>Пост 0</b>"))
-        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 6</b>"))
+        self.assertTrue(drafts[6]["text"].startswith("<b>Пост 6</b>"))
+        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))  # the digest, always last
+        self.assertEqual(drafts[-1]["time"], "22:00")
         self.assertEqual([d["time"] for d in drafts], sorted(d["time"] for d in drafts))
 
     def test_daily_error_tells_nina(self):
@@ -233,17 +237,20 @@ class AiTest(unittest.TestCase):
         mins = lambda ts: [int(t[:2]) * 60 + int(t[3:]) for t in ts]
         seen = set()
         for seed in range(300):
-            got = random_times(7, "2026-10-02T07:45", random.Random(seed))
+            got = random_times(7, "2026-10-02T05:00", random.Random(seed))
             m = mins(got)
             self.assertEqual(len(m), 7)
-            self.assertTrue(9 * 60 <= m[0] and m[-1] <= 22 * 60, got)
+            self.assertTrue(7 * 60 <= m[0] and m[-1] <= 21 * 60, got)
             self.assertTrue(all(b - a >= 60 for a, b in zip(m, m[1:])), got)
             self.assertTrue(all(x % 5 == 0 for x in m), got)
             seen.add(tuple(got))
         self.assertGreater(len(seen), 250)  # really random
         late = mins(random_times(7, "2026-10-02T15:02", random.Random(1)))  # a run by hand in the afternoon
         self.assertGreaterEqual(late[0], 15 * 60 + 20)
-        self.assertLessEqual(late[-1], 22 * 60)
+        self.assertLessEqual(late[-1], 21 * 60)
+        from schedule import digest_time
+        self.assertEqual(digest_time("20:40"), "22:00")
+        self.assertEqual(digest_time("22:15"), "22:20")  # a late run: still after the news
 
     def test_transcribe_sends_base64_json(self):
         self.replies = [{"text": " Пришли новость про роботов ", "language": "ru", "duration": 2.5}]

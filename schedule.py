@@ -10,7 +10,8 @@ def now_msk():
 
 
 SLOTS = ["09:00", "12:00", "15:00", "18:00", "21:00"]
-DAY_START, DAY_END, MIN_GAP = "09:00", "22:00", 60  # window and spacing of the daily drafts' random times
+DAY_START, DAY_END, MIN_GAP = "07:00", "21:00", 60  # window and spacing of the daily news' random times
+DIGEST_TIME = "22:00"  # the evening digest, after the news
 
 
 IMAGE_BUTTON = {"text": "Другая картинка", "callback_data": "img"}
@@ -70,4 +71,13 @@ def random_times(n, now=None, rng=random):
     slack = (end - start - gap * (n - 1)) // 5
     offsets = sorted(rng.randint(0, slack) for _ in range(n))
     times = [min(start + 5 * o + gap * i, last) for i, o in enumerate(offsets)]
-    return [f"{t // 60:02d}:{t % 60:02d}" for t in times]
+    return [_hhmm(t) for t in times]
+
+
+def _hhmm(t):
+    return f"{t // 60:02d}:{t % 60:02d}"
+
+
+def digest_time(after):
+    """The evening digest's time: DIGEST_TIME, or a bit after the day's last news `after` ('HH:MM') on a late run."""
+    return max(DIGEST_TIME, _hhmm(min(_minutes(after) + 5, 23 * 60 + 55)) if after else DIGEST_TIME)

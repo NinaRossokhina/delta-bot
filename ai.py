@@ -28,7 +28,7 @@ import costs
 import polza
 from datetime import date, timedelta
 
-from schedule import draft_buttons, next_free_slot, now_msk, random_times
+from schedule import digest_time, draft_buttons, next_free_slot, now_msk, random_times
 from send_drafts import CAPTION_LIMIT, send
 from tg import TOO_BIG, Unavailable, call, download
 
@@ -59,11 +59,11 @@ TOOLS = [
     ),
 ]
 PAGE_LIMIT = 8000
-RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor"]
+RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
 DAILY_COUNT = 7
 DAILY_SCHEMA = {
     "type": "object",
-    "properties": {"posts": {"type": "array", "description": "7 posts for today, the most relevant first.", "items": {
+    "properties": {"posts": {"type": "array", "description": "7 news posts for today, the most relevant first, then the evening digest.", "items": {
         "type": "object",
         "properties": {
             "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
@@ -77,9 +77,9 @@ DAILY_SCHEMA = {
     "required": ["posts"],
     "additionalProperties": False,
 }
-DAILY_TASK = """Prepare today's posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each.
+DAILY_TASK = """Prepare today's posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each, and then the evening positive digest (rubric "digest", it sums up the day's good news).
 - Most of them (at least 5 of {count}) about what is new in artificial intelligence and technology: new models and products, AI research, useful AI services, how AI and technology help people. The rest may come from the style guide's other rubrics.
-- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
+- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day; the digest comes last, in the evening.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
 - Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
@@ -251,12 +251,16 @@ def daily():
                 result, _ = use_tool(tool_call, {"kind": "daily"})
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
             continue
-        posts = json.loads(polza.text(message))["posts"][:DAILY_COUNT]  # most relevant first
-        if not posts:
+        posts = json.loads(polza.text(message))["posts"]
+        digest = [p for p in posts if p["rubric"] == "digest"][-1:]
+        news = [p for p in posts if p["rubric"] != "digest"][:DAILY_COUNT]  # most relevant first
+        if not news + digest:
             raise RuntimeError("no posts in the answer")
         day = now_msk()[:10]
+        times = random_times(len(news)) if news else []
+        times = times + [digest_time(times[-1] if times else None)] * len(digest)  # the digest always last
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
-                   "time": t, "suggested": True} for p, t in zip(posts, random_times(len(posts)))]
+                   "time": t, "suggested": True} for p, t in zip(news + digest, times)]
         path = draft_path(day)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(drafts, f, ensure_ascii=False, indent=1)

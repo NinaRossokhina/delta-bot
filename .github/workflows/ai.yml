@@ -1,7 +1,7 @@
 name: AI tasks
 on:
   schedule:
-    - cron: "45 4 * * *"  # 07:45 Moscow (UTC+3); GitHub may start it a bit late
+    - cron: "0 2 * * *"  # 05:00 Moscow (UTC+3), so the drafts come before the first post at 07:00; GitHub may start it late
   workflow_dispatch:
     inputs:
       task:
