@@ -35,11 +35,13 @@ from send_drafts import CAPTION_LIMIT, send
 from tg import TOO_BIG, Unavailable, call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
+POST_LIMIT = 600  # characters of a post with its headline, without HTML tags (style-guide.md, Nina 02.10.2026)
+LENGTH = f"400-{POST_LIMIT} characters with the headline, never more than {POST_LIMIT}"
 
 POST_SCHEMA = {
     "type": "object",
     "properties": {
-        "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, <a href='...'>source</a>. Under 1000 characters."},
+        "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, <a href='...'>source</a>, " + LENGTH + "."},
         "media": {"type": "string", "description": "Direct JPG/PNG image URL, or a page URL when media_type is link. Empty string for none."},
         "media_type": {"type": "string", "enum": ["photo", "video", "link", "none"]},
     },
@@ -78,7 +80,7 @@ DAILY_SCHEMA = {
         "type": "object",
         "properties": {
             "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
-            "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source as <a href='...'>word</a>. Under 1000 characters."},
+            "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source woven into the text as <a href='...'>word</a>, " + LENGTH + "."},
             "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post."},
             "source": {"type": "string", "description": "URL of the primary source the facts were checked against."},
         },
@@ -93,7 +95,7 @@ DAILY_TASK = """Prepare posts for the channel: exactly {count} fresh news storie
 - Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
-- Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
+- Each post strictly follows the style guide (its voice section too), 400-600 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
 - Do not repeat stories from the recent drafts listed above.
 Return the posts as JSON in the given format (this time not through send_drafts: the workflow saves and sends them)."""
 
@@ -157,7 +159,7 @@ Headlines of recent drafts (do not repeat these stories):
 
 How to work:
 - Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
-- Deliver posts only through the send_drafts tool, all in one call. Text is Telegram HTML (<b>, <i>, <a href>), no emoji, under 1000 characters.
+- Deliver posts only through the send_drafts tool, all in one call. Text is Telegram HTML (<b>, <i>, <a href>), no emoji, {LENGTH}. Write in the voice the style guide describes: a smart, passionate person, not a press release.
 - Media: a direct JPG/PNG image URL that you saw on the source page (og:image is ideal; avoid .webp and .avif). If only the page itself has a good preview, use media_type "link" with the page URL. Otherwise media_type "none".
 - After send_drafts, finish with one short sentence for Nina (for example, what you found). If her message is not a request for posts, just answer it briefly without calling send_drafts.
 - Today is {now_msk()[:10]} (Moscow)."""
@@ -387,7 +389,7 @@ class NotHeard(Exception):
 VOICE_POST_SCHEMA = {
     "type": "object",
     "properties": {
-        "post": {"type": "string", "description": "The finished post in Telegram HTML, under 1000 characters."},
+        "post": {"type": "string", "description": "The finished post in Telegram HTML, " + LENGTH + "."},
         "image_prompt": {"type": "string", "description": "In English: a picture for the post, what is in it and the style."},
     },
     "required": ["post", "image_prompt"],
@@ -406,7 +408,7 @@ How Nina writes (her voice):
 Examples of her posts:
 {read("style/examples.md")}
 
-Channel style guide (use its formatting rules: headline, paragraphs, links, length):
+Channel style guide (use its formatting rules: headline, paragraphs, links, length; where it differs from the voice description above, the style guide wins: it has Nina's latest decisions):
 {read("style-guide.md")}
 
 Reasons Nina gave when she rejected posts (learn from them):
@@ -415,7 +417,7 @@ Reasons Nina gave when she rejected posts (learn from them):
 Task: you get a rough transcript of her voice message. Make a finished post from it.
 - Keep her thoughts, facts and voice. Invent nothing: no facts, numbers, names, quotes or links that are not in the transcript.
 - Remove filler words, false starts and repetitions; put the thoughts in order.
-- Telegram HTML (<b>headline</b>, paragraphs separated by \n\n, <a href> only for links she said), no emoji, under 1000 characters.
+- Telegram HTML (<b>headline</b>, paragraphs separated by \n\n, <a href> only for links she said), no emoji, {LENGTH}. If she said more than fits, keep her main thought and drop the rest.
 - image_prompt: in English, a picture that fits the post (subject, setting, style), no text in the picture.
 Today is {now_msk()[:10]} (Moscow)."""
 
