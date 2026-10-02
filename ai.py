@@ -3,9 +3,10 @@
 Task kinds (JSON in the TASK env var):
   {"kind": "chat", "text": "пришли 2 новые новости"}  - Nina's free-form request
   {"kind": "edit", "msg": 123, "html": "...", "media": "...", "media_type": "photo",
-   "day": "2026-10-02", "instructions": "1. короче 2. другой заголовок"}  - rewrite a draft
-  {"kind": "voice", "file_id": "...", "mime": "audio/ogg"}  - Nina's voice or audio message: transcribe it
-   and send her the text; with "edit": {...edit task without instructions} it is her answer to
+   "day": "2026-10-02", "at": "2026-10-02T12:00", "instructions": "1. короче 2. другой заголовок"}  - rewrite a draft
+  {"kind": "voice", "file_id": "...", "mime": "audio/ogg", "duration": 75, "at": "2026-10-02T15:00"}
+   - Nina's voice or audio message: transcribe it and make a post (a draft suggested for "at", the slot
+   poll.py picked, so several voices in a row get different times); with "edit": {...edit task without instructions} it is her answer to
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
@@ -20,14 +21,16 @@ import html
 import json
 import os
 import re
+import signal
 import urllib.request
 
+import costs
 import polza
 from datetime import date, timedelta
 
 from schedule import SLOTS, draft_buttons, next_free_slot, now_msk
 from send_drafts import CAPTION_LIMIT, send
-from tg import call, download
+from tg import TOO_BIG, Unavailable, call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
 
@@ -156,6 +159,8 @@ def send_posts(posts, task):
             draft["media_type"] = task.get("media_type") or draft["media_type"]
         if task.get("image"):  # a post from a voice message keeps «Другая картинка»
             draft["image"] = True
+        if task.get("at"):  # a new version keeps the time of the old one
+            draft.update(time=task["at"][11:], suggested=True)
         try:
             send(draft, task.get("day"))
         except Exception as e:
@@ -266,15 +271,37 @@ def drafts_exist(day):
 TIMEOUT = "Polza AI не ответила вовремя. Попробуй ещё раз чуть позже."
 NOT_HEARD = "Не расслышала слов в голосовом. Попробуй ещё раз или напиши текстом."
 NO_MONEY = "На балансе Polza AI закончились деньги. Пополни счёт на polza.ai, и я снова смогу работать."
+POLZA_DOWN = "Polza AI сейчас не отвечает. Попробуй ещё раз чуть позже."
+POLZA_BUSY = "Polza AI просит подождать: слишком много запросов. Попробуй ещё раз через пару минут."
+TG_DOWN = "Telegram не отвечал, и я не смогла закончить. Попробуй ещё раз чуть позже."
+TOO_LONG = "Не уложилась в отведённое время ({} мин). Попробуй ещё раз; если это длинное голосовое, можно разбить его на части."
+DEADLINE_MIN = 16  # ai.yml stops the job at 20 minutes; leave time to tell Nina and save state
+
+
+class Deadline(BaseException):
+    """The task ran out of time. BaseException so that no retry loop (openai, httpx) swallows it."""
 
 
 def problem(e):
-    """A clear message for Nina about a known failure (timeout, no money on Polza), else None."""
+    """A clear message for Nina about a known failure (timeout, no money, Polza or Telegram down), else None."""
     import openai
+    if isinstance(e, Deadline):
+        return TOO_LONG.format(DEADLINE_MIN)
     if isinstance(e, (openai.APITimeoutError, TimeoutError)) or isinstance(getattr(e, "reason", None), TimeoutError):
         return TIMEOUT
-    if isinstance(e, openai.APIStatusError) and e.status_code == 402:
-        return NO_MONEY
+    if isinstance(e, openai.APIStatusError):
+        if e.status_code == 402:
+            return NO_MONEY
+        if e.status_code == 429:
+            return POLZA_BUSY
+        if e.status_code >= 500:
+            return POLZA_DOWN
+    if isinstance(e, openai.APIConnectionError):
+        return POLZA_DOWN
+    if isinstance(e, Unavailable):
+        return TG_DOWN
+    if isinstance(e, RuntimeError) and "file is too big" in str(e):
+        return TOO_BIG
     return None
 
 
@@ -293,8 +320,24 @@ def reason(e):
 
 
 def save_reason(title, text):
+    text = " ".join(text.split())  # one line, whatever the transcript looks like
     with open("feedback.md", "a", encoding="utf-8") as f:
-        f.write(f"- {now_msk()[:10]} «{title}»: {text}\n")
+        f.write(f"- {now_msk()[:10]} «{title}»: {shorten(text, 1000)}\n")
+
+
+def shorten(text, limit):
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+MESSAGE_LIMIT = 4096
+
+
+def say_long(text, limit=MESSAGE_LIMIT):
+    """Send a text of any length as several messages (Telegram takes up to 4096 characters)."""
+    while text:
+        cut = len(text) if len(text) <= limit else (text.rfind(" ", 0, limit) + 1 or limit)
+        call("sendMessage", chat_id=ADMIN, text=text[:cut].strip())
+        text = text[cut:].strip()
 
 
 class NotHeard(Exception):
@@ -311,7 +354,7 @@ VOICE_POST_SCHEMA = {
     "additionalProperties": False,
 }
 NO_TEXT = ", no text, no letters, no captions, no watermarks, no logos"
-IMAGES = "images.json"  # message id of a post from a voice message -> its image prompt
+IMAGES = "images.jsonl"  # {"msg": id of a post from a voice message, "prompt": its image prompt} per line
 
 
 def voice_system_prompt():
@@ -353,11 +396,22 @@ def make_image(image_prompt):
 
 
 def remember_image(msg, prompt):
-    images = json.loads(read(IMAGES) or "{}")
-    images[str(msg)] = prompt
-    with open(IMAGES, "w", encoding="utf-8") as f:
-        json.dump(dict(list(images.items())[-200:]), f, ensure_ascii=False, indent=1)
-        f.write("\n")
+    """Append a line (several voice tasks at once merge cleanly: merge=union in .gitattributes)."""
+    with open(IMAGES, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"msg": msg, "prompt": prompt}, ensure_ascii=False) + "\n")
+
+
+def image_prompt(msg):
+    """The saved prompt of a post's picture (the latest one), or None."""
+    found = None
+    for line in read(IMAGES).splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if str(row.get("msg")) == str(msg):
+            found = row.get("prompt")
+    return found
 
 
 def queued_times():
@@ -367,8 +421,9 @@ def queued_times():
         return set()
 
 
-def voice_post(transcript):
-    """Post from a voice message: text in Nina's voice, a picture, a draft at the nearest free slot."""
+def voice_post(transcript, at=None):
+    """Post from a voice message: text in Nina's voice, a picture, a draft at `at` (the slot poll.py
+    picked) or the nearest free slot."""
     result = write_voice_post(transcript)
     post, prompt = result["post"].strip(), result["image_prompt"].strip()
     try:
@@ -378,7 +433,7 @@ def voice_post(transcript):
         url, note = None, problem(e) or "Картинку нарисовать не получилось."
     else:
         note = None
-    at = next_free_slot(queued_times())
+    at = at if at and at > now_msk() else next_free_slot(queued_times())
     sent = send({"text": post, "media": url, "media_type": "photo" if url else "none",
                  "time": at[11:], "suggested": True, "image": True}, at[:10])
     remember_image(sent["message_id"], prompt)
@@ -389,16 +444,16 @@ def voice_post(transcript):
 
 def voice(task):
     """Transcribe Nina's voice message and act on it; returns the final message for her."""
-    text = polza.transcribe(download(task["file_id"]), task.get("mime") or "audio/ogg")
+    text = polza.transcribe(download(task["file_id"]), task.get("mime") or "audio/ogg", duration=task.get("duration"))
     if not text:
         raise NotHeard()
     if task.get("edit"):
-        call("sendMessage", chat_id=ADMIN, text=f"Расшифровка:\n{text}")
+        say_long(f"Расшифровка:\n{text}")
         return run({**task["edit"], "instructions": text})
     if task.get("reason"):
         save_reason(task["reason"], text)
-        return f"Записала причину: «{text}». Учту в следующих постах."
-    return voice_post(text)
+        return f"Записала причину: «{shorten(text, 300)}». Учту в следующих постах."
+    return voice_post(text, task.get("at"))
 
 
 def image_prompt_for(html_text):
@@ -412,7 +467,7 @@ def image_prompt_for(html_text):
 
 def new_image(task):
     """«Другая картинка»: draw a new picture and put it in the draft instead of the old one."""
-    prompt = json.loads(read(IMAGES) or "{}").get(str(task["msg"])) or image_prompt_for(task["html"])
+    prompt = image_prompt(task["msg"]) or image_prompt_for(task["html"])
     url = make_image(prompt)
     remember_image(task["msg"], prompt)
     caption = {"caption": task["html"], "parse_mode": "HTML"}
@@ -425,8 +480,40 @@ def new_image(task):
              reply_markup=task["buttons"])
 
 
+def notify(method, **params):
+    """A Telegram call while handling a failure: its own failure is printed, not raised."""
+    try:
+        call(method, **params)
+    except Exception as e:
+        print(f"{method} failed too: {e}")
+
+
+def _deadline(signum, frame):
+    raise Deadline()
+
+
+def start_deadline(minutes=DEADLINE_MIN):
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, _deadline)
+        signal.alarm(minutes * 60)
+
+
+def stop_deadline():
+    if hasattr(signal, "SIGALRM"):
+        signal.alarm(0)
+
+
 def main():
     task = json.loads(os.environ.get("TASK") or '{"kind": "daily", "scheduled": true}')
+    costs.task = task["kind"]
+    start_deadline()
+    try:
+        _main(task)
+    finally:
+        stop_deadline()
+
+
+def _main(task):
     if task["kind"] == "daily":
         day = now_msk()[:10]
         if task.get("scheduled") and drafts_exist(day):
@@ -434,8 +521,9 @@ def main():
             return
         try:
             path = daily()
-        except Exception as e:
-            call("sendMessage", chat_id=ADMIN, text=FAILED_TODAY.format(reason(e)))
+        except (Exception, Deadline) as e:
+            stop_deadline()
+            notify("sendMessage", chat_id=ADMIN, text=FAILED_TODAY.format(reason(e)))
             raise
         print(f"saved {path}")
         if os.environ.get("GITHUB_OUTPUT"):
@@ -445,14 +533,16 @@ def main():
     edit = task if task["kind"] == "edit" else task.get("edit")
     try:
         answer = {"voice": voice, "image": new_image}.get(task["kind"], run)(task)
-    except Exception as e:
+    except (Exception, Deadline) as e:
+        stop_deadline()
+        print(f"task failed: {type(e).__name__}")
         text = NOT_HEARD if isinstance(e, NotHeard) else problem(e) or "Что-то пошло не так, попробуй ещё раз чуть позже."
-        call("sendMessage", chat_id=ADMIN, text=text)
+        notify("sendMessage", chat_id=ADMIN, text=text)
         if edit:  # give the old draft its buttons back
-            call("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
-                 reply_markup=draft_buttons(f"{edit['day']}T09:00", image=bool(edit.get("image"))))
+            notify("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
+                   reply_markup=draft_buttons(edit.get("at") or f"{edit['day']}T09:00", image=bool(edit.get("image"))))
         if task["kind"] == "image" and task.get("buttons"):
-            call("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"], reply_markup=task["buttons"])
+            notify("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"], reply_markup=task["buttons"])
         if isinstance(e, NotHeard):
             return
         raise
@@ -460,7 +550,7 @@ def main():
         call("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
              reply_markup={"inline_keyboard": [[{"text": "✏️ Новая версия ниже", "callback_data": "done"}]]})
     if answer:
-        call("sendMessage", chat_id=ADMIN, text=answer)
+        say_long(answer)
 
 
 if __name__ == "__main__":

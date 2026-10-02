@@ -28,30 +28,18 @@ jobs:
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
-      # Voice messages: an answer to «Почему?» adds a line to feedback.md, a post saves its image prompt
-      # to images.json (for «Другая картинка»)
+      # Bot state the task changed: a reason for feedback.md (an answer to «Почему?»), image prompts
+      # for «Другая картинка» (images.jsonl), what the requests cost (costs.jsonl, for /cost)
       - if: always() && steps.ai.outcome != 'skipped'
-        run: |
-          git add feedback.md
-          [ -f images.json ] && git add images.json
-          git diff --cached --quiet && exit 0
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -qm "Bot state from AI tasks"
-          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
-          exit 1
+        run: bash save_state.sh "Bot state from AI tasks" feedback.md images.jsonl costs.jsonl
       # Daily drafts: commit the new file, then start send.yml for it
       # (a push made with GITHUB_TOKEN does not trigger other workflows by itself).
-      - if: steps.ai.outputs.file != ''
+      - if: always() && steps.ai.outputs.file != ''
         env:
           FILE: ${{ steps.ai.outputs.file }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          git add "$FILE"
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -qm "Drafts for $(basename "$FILE" .json)"
-          ok=
-          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
-          [ -n "$ok" ] || exit 1
+          bash save_state.sh "Drafts for $(basename "$FILE" .json)" "$FILE"
           gh workflow run send.yml --ref main -f file="$FILE"
       # ai.py reports its own failures; this covers saving and sending the drafts.
       - if: failure() && steps.ai.outcome == 'success' && steps.ai.outputs.file != ''

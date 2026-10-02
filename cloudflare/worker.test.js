@@ -82,6 +82,13 @@ test("errors are reported without the tokens", async () => {
   assert.match(await tick({}), /secrets/);
 });
 
+test("a network error that mentions the token does not show it", async () => {
+  globalThis.fetch = async url => { throw new Error(`fetch failed: ${url}`); };
+  const res = await tick({ TELEGRAM_BOT_TOKEN: "123:secret", GITHUB_TOKEN: "ghp_x" });
+  assert.match(res, /^error: fetch failed/);
+  assert.ok(!res.includes("123:secret"));
+});
+
 test("opening the URL shows the result", async () => {
   stub();
   const r = await worker.fetch(new Request("https://x/"), env);

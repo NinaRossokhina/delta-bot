@@ -4,7 +4,7 @@ from unittest import mock
 
 os.environ.update(TELEGRAM_BOT_TOKEN="test", ADMIN_CHAT_ID="1", CHANNEL_ID="@delta24news")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import poll
+import poll, tg
 from schedule import draft_buttons
 
 ADMIN = 1
@@ -142,13 +142,15 @@ class PollTest(unittest.TestCase):
     def test_voice_request_starts_voice_task(self):
         self.ai_on()
         self.voice()
-        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "F1", "mime": "audio/ogg"}])
+        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "F1", "mime": "audio/ogg", "duration": 3,
+                                       "at": "2026-10-02T12:00"}])
         self.assertEqual(self.asked(), ["Получила, работаю над постом"])
 
     def test_audio_file_too(self):
         self.ai_on()
         self.message(audio={"file_id": "A1", "mime_type": "audio/mpeg"})
-        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "A1", "mime": "audio/mpeg"}])
+        self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "A1", "mime": "audio/mpeg", "duration": 0,
+                                       "at": "2026-10-02T12:00"}])
 
     def test_voice_answer_to_edit_is_the_edit(self):
         self.ai_on()
@@ -211,6 +213,94 @@ class PollTest(unittest.TestCase):
         row = poll.draft_buttons("2026-10-02T18:00", mark=True)["inline_keyboard"][0]
         self.assertEqual([b["text"] for b in row], ["09:00", "12:00", "15:00", "• 18:00", "21:00"])
 
+
+    # --- review fixes -------------------------------------------------------
+    def test_cost_command(self):
+        open("costs.jsonl", "w").write('{"t": "2026-10-02T09:00", "task": "voice", "model": "m", "rub": 2.5}\n')
+        with mock.patch("costs.now_msk", lambda: self.now):
+            self.message(text="/cost")
+        self.assertIn("Сегодня, 02.10: 2,50 ₽", self.asked()[0])
+        self.assertIn("Октябрь 2026: 2,50 ₽", self.asked()[0])
+
+    def test_cost_command_does_not_answer_open_question(self):
+        self.button(10, "rej")
+        self.message(text="/cost@DeltaRossBot")
+        self.assertIn("99", self.bot.pending)  # «Почему?» is still waiting
+        self.assertFalse(os.path.exists("feedback.md"))
+
+    def test_voices_in_a_row_get_different_times(self):
+        self.ai_on()
+        self.bot.queue = [{"msg": 1, "at": "2026-10-02T12:00"}]
+        self.voice(); self.voice(); self.voice()
+        self.assertEqual([t["at"] for t in self.tasks], ["2026-10-02T15:00", "2026-10-02T18:00", "2026-10-02T21:00"])
+        self.bot.save()
+        self.assertEqual(poll.Bot().slots, ["2026-10-02T15:00", "2026-10-02T18:00", "2026-10-02T21:00"])
+        # Nina rejects the 18:00 one: the time is free for the next voice post
+        d = draft(20); d["reply_markup"] = poll.draft_buttons("2026-10-02T18:00", image=True, mark=True)
+        self.button(20, "rej", d)
+        self.button(99, "skip")  # no reason: the next voice is a new post, not the answer to «Почему?»
+        self.voice()
+        self.assertEqual(self.tasks[-1]["at"], "2026-10-02T18:00")
+
+    def test_long_voice_warns_and_too_big_is_refused(self):
+        self.ai_on()
+        self.message(voice={"file_id": "F", "duration": 14 * 60 + 5, "file_size": 3_000_000})
+        self.assertIn("длинное (14 мин)", self.asked()[-1])
+        self.message(voice={"file_id": "G", "duration": 3600, "file_size": 25_000_000})
+        self.assertEqual(self.asked()[-1], tg.TOO_BIG)
+        self.assertEqual(len(self.tasks), 1)
+
+    def test_edit_of_queued_post_takes_it_out_of_queue(self):
+        self.ai_on()
+        self.bot.queue = [{"msg": 10, "at": "2026-10-02T15:00"}]
+        d = draft(10); d["reply_markup"] = poll.scheduled_buttons("2026-10-02T15:00")
+        self.reply("сделай короче", d)
+        self.assertEqual(self.bot.queue, [])
+        self.assertEqual(self.tasks[0]["at"], "2026-10-02T15:00")
+
+    def test_telegram_down_keeps_due_post_in_queue(self):
+        def down(method, **p):
+            raise tg.Unavailable("Telegram: HTTP 502")
+        with mock.patch("poll.call", down):
+            self.bot.queue = [{"msg": 1, "at": "2026-10-02T09:00"}]
+            self.bot.publish_due()
+        self.assertEqual(self.bot.queue, [{"msg": 1, "at": "2026-10-02T09:00"}])
+
+    def test_published_but_label_failed_is_not_published_again(self):
+        def flaky(method, **p):
+            if method == "editMessageReplyMarkup": raise tg.Unavailable("timeout")
+            self.calls.append((method, p)); return {}
+        with mock.patch("poll.call", flaky):
+            self.bot.queue = [{"msg": 1, "at": "2026-10-02T09:00"}]
+            self.bot.publish_due()
+        self.assertEqual(self.bot.queue, [])
+        self.assertEqual(self.methods().count("copyMessage"), 1)
+
+    def test_telegram_down_mid_run_confirms_only_handled_updates(self):
+        self.ai_on()
+        updates = [{"update_id": 5, "callback_query": {"id": "a", "from": {"id": ADMIN}, "data": "at:2026-10-02T15:00", "message": draft(10)}},
+                   {"update_id": 6, "callback_query": {"id": "b", "from": {"id": ADMIN}, "data": "at:2026-10-02T18:00", "message": draft(11)}},
+                   {"update_id": 7, "message": {"message_id": 3, "chat": {"id": ADMIN}, "text": "пост про роботов"}}]
+        def fake(method, **p):
+            if method == "getUpdates": return updates
+            if method == "editMessageReplyMarkup" and p["message_id"] == 11: raise tg.Unavailable("Telegram: HTTP 502")
+            self.calls.append((method, p)); return {"message_id": 99}
+        with mock.patch("poll.call", fake):
+            poll.main()
+        self.assertEqual(open(".confirm_offset").read(), "6")  # 6 and 7 come again next run
+        self.assertEqual(poll.load("queue.json", []), [{"msg": 10, "at": "2026-10-02T15:00"}])  # 11 not half-done
+        self.assertEqual(self.tasks, [])
+
+    def test_task_started_then_telegram_fails_is_not_repeated(self):
+        self.ai_on()
+        updates = [{"update_id": 8, "message": {"message_id": 3, "chat": {"id": ADMIN}, "voice": {"file_id": "F"}}}]
+        def fake(method, **p):
+            if method == "getUpdates": return updates
+            raise tg.Unavailable("Telegram: timeout")
+        with mock.patch("poll.call", fake):
+            poll.main()
+        self.assertEqual(len(self.tasks), 1)
+        self.assertEqual(open(".confirm_offset").read(), "9")
 
 if __name__ == "__main__":
     unittest.main()

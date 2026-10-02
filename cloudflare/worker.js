@@ -48,6 +48,13 @@ export async function busyReason(env, ms = Date.now()) {
   return null;
 }
 
+// Error texts never show the tokens, even if some error message happens to contain a URL.
+export function redact(text, env) {
+  let out = String(text);
+  for (const secret of [env.TELEGRAM_BOT_TOKEN, env.GITHUB_TOKEN]) if (secret) out = out.split(secret).join("***");
+  return out;
+}
+
 export async function tick(env) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.GITHUB_TOKEN) return "error: secrets TELEGRAM_BOT_TOKEN / GITHUB_TOKEN are not set";
   try {
@@ -58,9 +65,9 @@ export async function tick(env) {
     const r = await github(env, "/actions/workflows/poll.yml/dispatches", {
       method: "POST", body: JSON.stringify({ ref: "main" }),
     });
-    return r.ok ? `${why}: started` : `error: dispatch failed ${r.status} ${await r.text()}`;
+    return r.ok ? `${why}: started` : redact(`error: dispatch failed ${r.status} ${await r.text()}`, env);
   } catch (e) {
-    return `error: ${e.message}`;
+    return redact(`error: ${e.message}`, env);
   }
 }
 

@@ -7,7 +7,7 @@ from openai import OpenAI
 
 os.environ.update(TELEGRAM_BOT_TOKEN="test", ADMIN_CHAT_ID="1", POLZA_API_KEY="test-key")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import ai, polza
+import ai, costs, polza, tg
 
 POST = {"text": "<b>Заголовок</b>\n\nТекст <a href='https://example.com'>Источник</a>",
         "media": "https://example.com/a.jpg", "media_type": "photo"}
@@ -286,7 +286,7 @@ class AiTest(unittest.TestCase):
             "prompt": "A robot cooking pasta, warm light, no text, no letters, no captions, no watermarks, no logos",
             "aspect_ratio": "4:3"}})
         self.assertEqual((poll1.method, str(poll1.url)), ("GET", "https://polza.ai/api/v1/media/m1"))
-        self.assertEqual(json.load(open("images.json")), {"77": "A robot cooking pasta, warm light."})
+        self.assertEqual([json.loads(l) for l in open("images.jsonl")], [{"msg": 77, "prompt": "A robot cooking pasta, warm light."}])
 
     def test_voice_post_without_image_if_it_fails(self):
         sent = self.voice_post_setup()
@@ -311,7 +311,7 @@ class AiTest(unittest.TestCase):
         self.assertEqual(polza.media(polza.IMAGE_MODEL, {"prompt": "x"}), "https://cdn/x.png")
 
     def test_other_image_replaces_photo_in_place(self):
-        open("images.json", "w").write('{"7": "A robot"}')
+        open("images.jsonl", "w").write('{"msg": 7, "prompt": "Old"}\n{"msg": 8, "prompt": "Other"}\n{"msg": 7, "prompt": "A robot"}\n')
         self.replies = [{"id": "m2", "status": "completed", "output": {"url": "https://cdn/new.png"}}]
         buttons = {"inline_keyboard": [[{"text": "Другая картинка", "callback_data": "img"}]]}
         os.environ["TASK"] = json.dumps({"kind": "image", "msg": 7, "html": "<b>Пост</b>", "media": "https://cdn/old.png",
@@ -369,6 +369,126 @@ class AiTest(unittest.TestCase):
             self.voice_task()
         self.assertEqual(self.texts(), [ai.NO_MONEY])
 
+
+    # --- review fixes: costs, long voice, failures --------------------------
+    def test_cost_of_each_request_is_recorded(self):
+        reply = completion("Просто ответ.")
+        reply["usage"] = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "cost_rub": 1.25, "cost": 1.25}
+        self.replies = [reply]
+        os.environ["TASK"] = json.dumps({"kind": "chat", "text": "привет"})
+        with mock.patch("costs.now_msk", lambda: "2026-10-02T10:00"):
+            ai.main()
+        self.assertEqual([json.loads(l) for l in open("costs.jsonl")],
+                         [{"t": "2026-10-02T10:00", "task": "chat", "model": polza.MODEL, "rub": 1.25}])
+
+    def test_cost_from_transcription_and_media_and_missing_price(self):
+        self.replies = [{"text": "ок", "usage": {"cost_rub": "0.4"}},
+                        {"id": "m", "status": "completed", "cost": 3, "output": {"url": "https://x/p.png"}},
+                        completion("без цены")]
+        polza.transcribe(b"OggS")
+        polza.media(polza.IMAGE_MODEL, {"prompt": "x"})
+        polza.chat([{"role": "user", "content": "x"}])
+        self.assertEqual([json.loads(l)["rub"] for l in open("costs.jsonl")], [0.4, 3.0, None])
+
+    def test_cost_report_today_and_month(self):
+        rows = [("2026-09-30T10:00", "daily", 50), ("2026-10-01T09:00", "daily", 40.5),
+                ("2026-10-02T09:00", "voice", 2.25), ("2026-10-02T09:05", "image", 3), ("2026-10-02T09:06", "chat", None)]
+        with open("costs.jsonl", "w") as f:
+            for t, task, rub in rows:
+                f.write(json.dumps({"t": t, "task": task, "model": "m", "rub": rub}) + "\n")
+            f.write("broken line\n")
+        text = costs.report("2026-10-02T12:00")
+        self.assertIn("Сегодня, 02.10: 5,25 ₽, запросов: 3", text)
+        self.assertIn("картинки: 3,00 ₽", text)
+        self.assertIn("без цены в ответе Polza: 1", text)
+        self.assertIn("Октябрь 2026: 45,75 ₽, запросов: 4", text)
+        self.assertIn("черновики на день: 40,50 ₽", text)
+        self.assertNotIn("50,00", text)
+
+    def test_long_voice_is_cut_into_pieces(self):
+        self.replies = [{"text": "первая часть"}, {"text": ""}, {"text": "третья"}]
+        with mock.patch("polza.split_audio", return_value=[b"A", b"B", b"C"]) as split:
+            self.assertEqual(polza.transcribe(b"OggS", duration=25 * 60), "первая часть третья")
+        split.assert_called_once_with(b"OggS", 600)
+        self.assertEqual([json.loads(r.content)["file"][:20] for r in self.requests], ["data:audio/mpeg;base"] * 3)
+
+    def test_short_voice_is_sent_whole(self):
+        self.replies = [{"text": "коротко"}]
+        with mock.patch("polza.split_audio") as split:
+            polza.transcribe(b"OggS", duration=9 * 60)
+        split.assert_not_called()
+
+    @unittest.skipUnless(__import__("shutil").which("ffmpeg"), "needs ffmpeg")
+    def test_split_audio_with_ffmpeg(self):
+        import subprocess
+        ogg = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=25",
+                              "-c:a", "libopus", "-f", "ogg", "pipe:1"], capture_output=True, check=True).stdout
+        parts = polza.split_audio(ogg, 10)
+        self.assertEqual(len(parts), 3)
+        self.assertTrue(all(len(p) > 1000 for p in parts))
+
+    def test_long_transcript_is_sent_in_parts(self):
+        words = " ".join(["слово"] * 1500)  # ~9000 characters
+        self.replies = [{"text": words}, completion(tool_calls=[("send_drafts", {"posts": [POST]})]), completion("Готово.")]
+        self.voice_task(edit={"kind": "edit", "msg": 7, "html": "<b>Старый</b>", "day": "2026-10-02", "at": "2026-10-02T18:00"})
+        parts = self.texts()[:-1]
+        self.assertGreater(len(parts), 2)
+        self.assertTrue(all(len(p) <= 4096 for p in parts))
+        self.assertEqual(" ".join(parts).replace("Расшифровка:\n", ""), words)
+        self.assertEqual((self.sent[0][0]["time"], self.sent[0][0]["suggested"]), ("18:00", True))  # keeps its time
+
+    def test_long_reason_is_one_short_line(self):
+        self.replies = [{"text": "очень\nдлинно " * 400}]
+        self.voice_task(reason="Пост")
+        line = open("feedback.md", encoding="utf-8").read().splitlines()[-1]
+        self.assertLess(len(line), 1100)
+        self.assertLess(len(self.texts()[0]), 400)
+
+    def test_voice_post_uses_slot_from_poll(self):
+        sent = self.voice_post_setup()
+        self.replies = [{"text": "роботы"}, completion(json.dumps(self.VOICE_POST)),
+                        {"id": "m1", "status": "completed", "output": {"url": "https://x/p.png"}}]
+        self.voice_task(at="2026-10-02T21:00")
+        self.assertEqual((sent[0][0]["time"], sent[0][1]), ("21:00", "2026-10-02"))
+
+    def test_too_big_file(self):
+        os.environ["TASK"] = json.dumps({"kind": "voice", "file_id": "F1"})
+        with mock.patch("ai.download", side_effect=RuntimeError("getFile: Bad Request: file is too big")):
+            with self.assertRaises(RuntimeError):
+                ai.main()
+        self.assertEqual(self.texts(), [tg.TOO_BIG])
+
+    def test_deadline_tells_nina_and_restores_buttons_with_time(self):
+        os.environ["TASK"] = json.dumps({"kind": "edit", "msg": 7, "html": "x", "day": "2026-10-02",
+                                         "at": "2026-10-02T15:00", "instructions": "короче"})
+        with mock.patch("ai.run", side_effect=ai.Deadline()), self.assertRaises(ai.Deadline):
+            ai.main()
+        self.assertIn("Не уложилась", self.texts()[0])
+        self.assertIn("at:2026-10-02T15:00", str(self.calls[-1]))  # buttons back, at the post's own time
+
+    def test_polza_down_and_busy_messages(self):
+        for status, text in [(503, ai.POLZA_DOWN), (429, ai.POLZA_BUSY)]:
+            self.calls.clear()
+            polza._client._client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, json={})))
+            polza._client.max_retries = 0
+            os.environ["TASK"] = json.dumps({"kind": "chat", "text": "x"})
+            with self.assertRaises(Exception):
+                ai.main()
+            self.assertEqual(self.texts(), [text])
+        polza._client._client = httpx.Client(transport=httpx.MockTransport(lambda r: (_ for _ in ()).throw(httpx.ConnectError("no"))))
+        self.calls.clear()
+        with self.assertRaises(Exception):
+            ai.main()
+        self.assertEqual(self.texts(), [ai.POLZA_DOWN])
+
+    def test_telegram_down_while_reporting_does_not_hide_the_error(self):
+        def down(method, **p):
+            raise tg.Unavailable("Telegram: timeout")
+        os.environ["TASK"] = json.dumps({"kind": "chat", "text": "x"})
+        with mock.patch("ai.call", down), mock.patch("ai.run", side_effect=ValueError("boom")):
+            with self.assertRaises(ValueError):
+                ai.main()
+        self.assertEqual(ai.problem(tg.Unavailable("x")), ai.TG_DOWN)
 
 if __name__ == "__main__":
     unittest.main()

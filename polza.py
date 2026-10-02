@@ -4,7 +4,11 @@ All AI calls of the bot go through here. The key comes only from the POLZA_API_K
 """
 import base64
 import os
+import shutil
 import subprocess
+import tempfile
+
+import costs
 
 import openai
 from openai import OpenAI
@@ -44,6 +48,10 @@ def chat(messages, tools=None, web=False, model=MODEL, max_tokens=16000, **param
     extra = {"plugins": [WEB]} if web else None
     response = client().chat.completions.create(
         model=model, messages=messages, max_tokens=max_tokens, extra_body=extra, **params)
+    costs.record(model, response)
+    if not response.choices:  # an error delivered with status 200
+        error = getattr(response, "error", None) or "no choices"
+        raise RuntimeError(f"Polza: empty answer ({str(error)[:200]})")
     return response.choices[0]
 
 
@@ -66,12 +74,19 @@ def text(message):
 
 
 TRANSCRIBE_MODEL = "openai/whisper-large-v3-turbo"
+CHUNK_SECONDS = 600  # long recordings are cut into 10-minute pieces
+DIRECT_LIMIT = 15 * 1024 * 1024  # bigger files are cut too (Polza takes up to 25 MB, base64 adds a third)
 
 
-def transcribe(audio, mime="audio/ogg", language="ru", model=TRANSCRIBE_MODEL):
+def transcribe(audio, mime="audio/ogg", language="ru", model=TRANSCRIBE_MODEL, duration=None):
     """Speech to text (POST /audio/transcriptions). `audio` is the file's bytes (mp3, wav, m4a, flac,
     ogg or webm, up to 25 MB); it goes as a base64 data URL in the JSON body, as the docs show.
-    If Polza rejects the format (Telegram voices are ogg/opus), it is converted to mp3 with ffmpeg."""
+    If Polza rejects the format (Telegram voices are ogg/opus), it is converted to mp3 with ffmpeg.
+    Recordings longer than 10 minutes (`duration`, seconds) or bigger than 15 MB are cut into
+    10-minute mp3 pieces, transcribed one by one and joined."""
+    if (duration or 0) > CHUNK_SECONDS or len(audio) > DIRECT_LIMIT:
+        parts = [_transcribe(p, "audio/mpeg", language, model) for p in split_audio(audio, CHUNK_SECONDS)]
+        return " ".join(p for p in parts if p)
     try:
         return _transcribe(audio, mime, language, model)
     except (openai.BadRequestError, openai.UnprocessableEntityError):
@@ -84,13 +99,49 @@ def _transcribe(audio, mime, language, model):
     file = f"data:{mime};base64,{base64.b64encode(audio).decode()}"
     result = client().post("/audio/transcriptions", cast_to=object,
                            body={"model": model, "file": file, "language": language})
+    costs.record(model, result if isinstance(result, dict) else None)
     return (result.get("text") or "").strip()
+
+
+def _ffmpeg(audio, *args, timeout=300):
+    """Run ffmpeg on `audio` (bytes) saved to a temporary file (m4a cannot be read from a pipe);
+    `args` name outputs inside the folder as {dir}/... Returns the folder."""
+    folder = tempfile.mkdtemp(prefix="voice-")
+    source = os.path.join(folder, "source")
+    with open(source, "wb") as f:
+        f.write(audio)
+    try:
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", source, "-vn", *[a.format(dir=folder) for a in args]],
+                       capture_output=True, check=True, timeout=timeout)
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    os.remove(source)
+    return folder
 
 
 def to_mp3(audio):
     """Convert any audio ffmpeg understands to mp3 (ffmpeg is installed by the ai.yml workflow)."""
-    return subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-f", "mp3", "pipe:1"],
-                          input=audio, capture_output=True, check=True, timeout=120).stdout
+    folder = _ffmpeg(audio, "-f", "mp3", "{dir}/out.mp3")
+    try:
+        with open(os.path.join(folder, "out.mp3"), "rb") as f:
+            return f.read()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def split_audio(audio, seconds=CHUNK_SECONDS):
+    """Pieces of `seconds` each, as mono 48 kbit/s mp3 (10 minutes is about 3.6 MB)."""
+    folder = _ffmpeg(audio, "-ac", "1", "-ar", "16000", "-b:a", "48k", "-f", "segment",
+                     "-segment_time", str(seconds), "-reset_timestamps", "1", "{dir}/part%03d.mp3")
+    try:
+        parts = []
+        for name in sorted(os.listdir(folder)):
+            with open(os.path.join(folder, name), "rb") as f:
+                parts.append(f.read())
+        return parts
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 IMAGE_MODEL = "google/gemini-3.1-flash-image-preview"
@@ -107,6 +158,8 @@ def media(model, input, poll=MEDIA_POLL_SECONDS, limit=MEDIA_MAX_SECONDS, sleep=
     started = clock()
     while True:
         status = job.get("status")
+        if status in ("completed", "failed", "cancelled"):
+            costs.record(model, job)
         if status == "completed":
             url = _output_url(job.get("output"))
             if not url:

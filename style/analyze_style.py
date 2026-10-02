@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import costs
 import polza
 from build_style import HERE, header, read
 
+costs.task = "style"  # its price shows in /cost as «голос канала»
 MAX_CHARS = 400_000  # a very big channel is sampled evenly to fit the model's context
 
 PROMPT = """Ниже посты из Telegram-канала Нины, каждый с заголовком [пост <id> · <дата>].

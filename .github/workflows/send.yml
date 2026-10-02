@@ -15,13 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0  # a push can bring several commits; all their new draft files are sent
       - name: Send new draft files
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
           INPUT_FILE: ${{ github.event.inputs.file }}
+          BEFORE: ${{ github.event.before }}
         run: |
           if [ -n "$INPUT_FILE" ]; then files="$INPUT_FILE"
-          else files=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'drafts/*.json'); fi
+          else
+            git cat-file -e "$BEFORE^{commit}" 2>/dev/null || BEFORE=HEAD~1
+            files=$(git diff --name-only --diff-filter=A "$BEFORE" HEAD -- 'drafts/*.json')
+          fi
           for f in $files; do echo "== $f"; python send_drafts.py "$f"; done

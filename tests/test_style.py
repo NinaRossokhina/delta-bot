@@ -1,6 +1,7 @@
 """Tests of style/build_style.py and style/analyze_style.py with a stubbed Polza API (no network)."""
 import json, os, sys, tempfile, unittest
 from pathlib import Path
+from unittest import mock
 
 import httpx
 from openai import OpenAI
@@ -8,7 +9,7 @@ from openai import OpenAI
 os.environ.setdefault("POLZA_API_KEY", "test-key")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, "style")]
-import analyze_style, build_style, polza
+import analyze_style, build_style, costs, polza
 
 EXPORT = {"name": "Канал", "type": "public_channel", "messages": [
     {"id": 1, "type": "service", "date": "2026-01-01T10:00:00", "action": "create_channel", "text": ""},
@@ -26,6 +27,7 @@ class StyleTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.path = Path(self.dir.name)
+        pa = mock.patch("costs.FILE", str(self.path / "costs.jsonl")); pa.start(); self.addCleanup(pa.stop)
 
     def tearDown(self):
         self.dir.cleanup()

@@ -6,24 +6,27 @@ the workflow commits back to the repo; updates are confirmed (`--confirm OFFSET`
 after that push succeeds. Anything that needs writing (new posts, edits) is handed to
 the "AI tasks" workflow (ai.py).
 """
+import copy
 import json
 import os
 import re
 import sys
 import urllib.request
 
+import costs
 from drafthtml import to_html
-from schedule import draft_buttons, now_msk, scheduled_buttons
-from tg import call
+from schedule import draft_buttons, next_free_slot, now_msk, scheduled_buttons
+from tg import FILE_LIMIT, TOO_BIG, Unavailable, call
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
 CHANNEL = os.environ["CHANNEL_ID"]  # e.g. @delta24news
 AI_ENABLED = os.environ.get("AI_ENABLED") == "true"
-QUEUE, PENDING, FEEDBACK = "queue.json", "pending.json", "feedback.md"
+QUEUE, PENDING, FEEDBACK, SLOTS = "queue.json", "pending.json", "feedback.md", "slots.json"
 TIME = re.compile(r"^\s*(\d{1,2})[:.](\d{2})\s*$")
 NO_AI = ("Пока я понимаю только кнопки под черновиками, ответ со временем (15:30) "
          "и ответ с исправленным текстом. Писать новые посты и слушать голосовые научусь, когда подключат ключ Polza AI.")
 GOT_VOICE = "Получила, работаю над постом"
+LONG_VOICE = " Голосовое длинное ({} мин), расшифровка займёт несколько минут."
 
 
 def load(path, default):
@@ -64,25 +67,55 @@ def mark(message_id, label):
 def publish(message_id):
     call("copyMessage", chat_id=CHANNEL, from_chat_id=ADMIN,
          message_id=message_id, reply_markup={"inline_keyboard": []})
-    mark(message_id, f"✅ Опубликовано в {now_msk()[11:]}")
+    quiet(mark, message_id, f"✅ Опубликовано в {now_msk()[11:]}")  # the post is out; a lost label must not repeat it
+
+
+def quiet(fn, *args, **kwargs):
+    """A call that must not undo the work already done (a reaction, a note, a button label):
+    if Telegram fails here, the update is still treated as handled, so the task is not started twice."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        print(f"{getattr(fn, '__name__', fn)} failed: {e}")
 
 
 def react(msg, emoji="👍"):
-    try:
-        call("setMessageReaction", chat_id=ADMIN, message_id=msg["message_id"],
-             reaction=[{"type": "emoji", "emoji": emoji}])
-    except RuntimeError:
-        pass
+    quiet(call, "setMessageReaction", chat_id=ADMIN, message_id=msg["message_id"],
+          reaction=[{"type": "emoji", "emoji": emoji}])
 
 
 class Bot:
     def __init__(self):
         self.queue = load(QUEUE, [])
         self.pending = load(PENDING, {})  # question message id -> what the answer is for
+        self.slots = load(SLOTS, [])  # times suggested to posts from voice messages ("•"), not taken yet
 
     def save(self):
         save(QUEUE, sorted(self.queue, key=lambda i: i["at"]))
         save(PENDING, dict(list(self.pending.items())[-20:]))
+        save(SLOTS, sorted(s for s in set(self.slots) if s > now_msk()))
+
+    def snapshot(self):
+        return copy.deepcopy((self.queue, self.pending, self.slots))
+
+    def restore(self, state):
+        self.queue, self.pending, self.slots = state
+
+    def pick_slot(self):
+        """The nearest slot not taken by the queue or by another voice post still waiting for Nina,
+        so several voice messages in a row get different times."""
+        now = now_msk()
+        self.slots = [s for s in self.slots if s > now]
+        at = next_free_slot({i["at"] for i in self.queue} | set(self.slots), now)
+        self.slots.append(at)
+        return at
+
+    def release_slot(self, draft):
+        """The draft's suggested time («• 15:00») is free again once Nina chose a time or rejected it."""
+        for row in draft.get("reply_markup", {}).get("inline_keyboard", []):
+            for b in row:
+                if b["text"].startswith("• ") and b["callback_data"][3:] in self.slots:
+                    self.slots.remove(b["callback_data"][3:])
 
     def unqueue(self, mid):
         self.queue[:] = [i for i in self.queue if i["msg"] != mid]
@@ -97,15 +130,23 @@ class Bot:
     # --- messages ---------------------------------------------------------
     def on_message(self, msg):
         text = msg.get("text", "")
-        if text.startswith("/start"):
+        command = text.split()[0].split("@")[0].lower() if text.startswith("/") else ""
+        if command == "/start":
             say("Привет! Это Delta. Сюда приходят черновики постов. "
-                "Можно написать, например: «пришли 2 новые новости» или «сделай пост про новый iPhone».")
+                "Можно написать, например: «пришли 2 новые новости» или «сделай пост про новый iPhone». "
+                "Команда /cost покажет, сколько потрачено на Polza AI.")
+            return
+        if command == "/cost":
+            say(costs.report())
             return
         voice = msg.get("voice") or msg.get("audio")
         if not text and not voice:
             return
         if voice and not AI_ENABLED:
             say(NO_AI)
+            return
+        if voice and (voice.get("file_size") or 0) > FILE_LIMIT:
+            say(TOO_BIG)  # an open question stays open: she can answer it with a shorter recording
             return
         target = msg.get("reply_to_message")
         about = self.answered(target)
@@ -136,18 +177,25 @@ class Bot:
     def on_voice(self, voice, about, target, msg):
         """Voice or audio: ai.py downloads and transcribes it (task "voice"). An answer to
         «Что поправить?» (or a voice reply to a draft) becomes the edit, to «Почему?» the reason."""
-        task = {"kind": "voice", "file_id": voice["file_id"], "mime": voice.get("mime_type") or "audio/ogg"}
+        task = {"kind": "voice", "file_id": voice["file_id"], "mime": voice.get("mime_type") or "audio/ogg",
+                "duration": voice.get("duration") or 0}
         if not about and target and self.is_open_draft(target):
             about = self.draft_info(target)
         if about and about["kind"] == "edit":
             task["edit"] = {k: v for k, v in about.items() if k != "asked"}
         elif about and about["kind"] == "reason":
             task["reason"] = about["title"]
+        else:
+            task["at"] = self.pick_slot()
         if not self.ai(task, msg):
+            if "at" in task:
+                self.slots.remove(task["at"])
             return
-        say(GOT_VOICE)
+        minutes = task["duration"] // 60
+        quiet(say, GOT_VOICE + (LONG_VOICE.format(minutes) if minutes >= 10 else ""))
         if "edit" in task:
-            mark(task["edit"]["msg"], "✏️ Переписываю…")
+            self.unqueue(task["edit"]["msg"])  # a queued post must not go out in its old version
+            quiet(mark, task["edit"]["msg"], "✏️ Переписываю…")
 
     @staticmethod
     def recent(about):
@@ -161,6 +209,15 @@ class Bot:
 
     def is_open_draft(self, message):
         return any(b in ("pub", "edit") or b.startswith(("at:", "un:", "ui:")) for b in self.buttons_of(message))
+
+    @staticmethod
+    def draft_time(draft):
+        """The draft's time: the scheduled one, else the suggested one («• 15:00»), else None."""
+        rows = draft.get("reply_markup", {}).get("inline_keyboard", [])
+        for b in (b for row in rows for b in row):
+            if b["callback_data"].startswith(("un:", "ui:")) or (b["text"].startswith("• ") and b["callback_data"].startswith("at:")):
+                return b["callback_data"][3:]
+        return None
 
     @staticmethod
     def has_image_button(message):
@@ -191,8 +248,11 @@ class Bot:
     def draft_info(draft):
         html, media, media_type = to_html(draft)
         at = next((b[3:] for b in Bot.buttons_of(draft) if b.startswith("at:")), None)
+        when = Bot.draft_time(draft)
         info = {"kind": "edit", "msg": draft["message_id"], "html": html,
                 "media": media, "media_type": media_type, "day": (at or now_msk())[:10]}
+        if when:
+            info["at"] = when
         return {**info, "image": True} if Bot.has_image_button(draft) else info
 
     def start_edit(self, about, instructions, msg):
@@ -201,15 +261,16 @@ class Bot:
             return
         about = {k: v for k, v in about.items() if k != "asked"}
         if self.ai({**about, "instructions": instructions}, msg):
-            mark(about["msg"], "✏️ Переписываю…")
+            self.unqueue(about["msg"])  # a queued post must not go out in its old version
+            quiet(mark, about["msg"], "✏️ Переписываю…")
 
     @staticmethod
     def ai(task, msg=None):
         try:
             run_ai(task)
         except Exception as e:
-            print(f"could not start AI task: {e!r}")
-            say("Не получилось взяться за задачу, попробуй ещё раз чуть позже.")
+            print(f"could not start AI task: {type(e).__name__} {getattr(e, 'code', '')}")
+            quiet(say, "Не получилось взяться за задачу (GitHub не ответил), попробуй ещё раз чуть позже.")
             return False
         if msg:
             react(msg, "👀")
@@ -236,9 +297,14 @@ class Bot:
     def on_button(self, q):
         draft, data, note = q["message"], q["data"], None
         mid = draft["message_id"]
+        if data in ("pub", "rej") or data.startswith("at:"):
+            self.release_slot(draft)
         if data == "pub":
             self.unqueue(mid)
-            publish(mid)
+            try:
+                publish(mid)
+            except RuntimeError as e:
+                note = f"Не получилось опубликовать: {str(e)[:150]}"
         elif data.startswith("at:"):
             at = data[3:]
             self.unqueue(mid)
@@ -252,7 +318,7 @@ class Bot:
             if not AI_ENABLED:
                 note = "Картинки рисую через Polza AI, а ключ не подключён"
             elif self.ai({**self.draft_info(draft), "kind": "image", "buttons": draft.get("reply_markup")}):
-                set_buttons(mid, {"inline_keyboard": [[{"text": "🎨 Рисую другую картинку…", "callback_data": "done"}]]})
+                quiet(set_buttons, mid, {"inline_keyboard": [[{"text": "🎨 Рисую другую картинку…", "callback_data": "done"}]]})
                 note = "Рисую другую картинку"
         elif data == "edit":
             self.ask("Что поправить? Ответь текстом или голосовым.", self.draft_info(draft))
@@ -266,10 +332,7 @@ class Bot:
         elif data == "skip":
             self.pending.pop(str(mid), None)
             call("deleteMessage", chat_id=ADMIN, message_id=mid)
-        try:
-            call("answerCallbackQuery", callback_query_id=q["id"], text=note)
-        except RuntimeError:
-            pass  # query too old to answer; harmless
+        quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=note)  # may be too old; harmless
 
     def handle(self, update):
         msg = update.get("message")
@@ -282,28 +345,42 @@ class Bot:
             self.on_button(q)
 
     def publish_due(self):
+        """Publish posts whose time came. If Telegram is down, they stay queued for the next run;
+        if Telegram refuses (the draft was deleted), the post is dropped and Nina is told."""
         now = now_msk()
         for item in [i for i in self.queue if i["at"] <= now]:
             try:
                 publish(item["msg"])
+            except Unavailable as e:
+                print(f"publishing {item['msg']} postponed: {e}")
+                continue
             except RuntimeError as e:
                 print(f"publishing {item['msg']} failed: {e}")
+                quiet(say, f"Не получилось опубликовать пост на {item['at'][11:]}: {str(e)[:150]}")
             self.unqueue(item["msg"])
 
 
 def main():
     bot = Bot()
     updates = call("getUpdates", timeout=0, allowed_updates=["message", "callback_query"])
+    confirm = None
     for u in updates:
+        state = bot.snapshot()
         try:
             bot.handle(u)
+        except Unavailable as e:
+            # Telegram stopped answering: this update and the rest stay unconfirmed and come again next run.
+            print(f"update {u['update_id']}: {e}; the rest waits for the next run")
+            bot.restore(state)
+            break
         except Exception as e:  # one bad update must not block the rest
-            print(f"update {u['update_id']} failed: {e}")
+            print(f"update {u['update_id']} failed: {type(e).__name__}: {e}")
+        confirm = u["update_id"] + 1
     bot.publish_due()
     bot.save()
-    if updates:
+    if confirm:
         with open(".confirm_offset", "w") as f:
-            f.write(str(updates[-1]["update_id"] + 1))
+            f.write(str(confirm))
     print(f"processed {len(updates)} updates, {len(bot.queue)} posts queued")
 
 

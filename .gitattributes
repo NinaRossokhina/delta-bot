@@ -1,0 +1,4 @@
+# Bot files that only grow by appending lines: two workflows writing at once merge without conflicts.
+feedback.md merge=union
+costs.jsonl merge=union
+images.jsonl merge=union
