@@ -47,6 +47,13 @@ class AiTest(unittest.TestCase):
 
     def bodies(self): return [json.loads(r.content) for r in self.requests]
 
+    def test_prompt_has_channel_stats(self):
+        week = ai.stats.now_msk()[:10]
+        with open("stats.jsonl", "w", encoding="utf-8") as f:
+            for i in range(1, 5):
+                f.write(json.dumps({"week": week, "id": i, "title": f"Пост {i}", "views": i, "reactions": 0}) + "\n")
+        self.assertIn("Most read:\n- Пост 4 (4 views, 0 reactions)", ai.system_prompt())
+
     def test_chat_sends_drafts_and_answers(self):
         self.replies = [completion(tool_calls=[("send_drafts", {"posts": [POST, {**POST, "media": "", "media_type": "none"}]})]),
                         completion("Нашла две новости.")]

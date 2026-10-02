@@ -26,6 +26,7 @@ import urllib.request
 
 import costs
 import polza
+import stats
 from datetime import date, timedelta
 
 from schedule import SLOTS, draft_buttons, next_free_slot, now_msk
@@ -141,6 +142,9 @@ Reasons Nina gave when she rejected posts (learn from them):
 
 Headlines of recent drafts (do not repeat these stories):
 {recent_headlines() or "(none)"}
+
+What the channel's readers liked lately (published posts of the last weeks by views and reactions). When choosing news, prefer topics and angles like the most read ones and avoid those like the least read, within the style guide's rules:
+{stats.for_prompt() or "(no stats yet)"}
 
 How to work:
 - Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
