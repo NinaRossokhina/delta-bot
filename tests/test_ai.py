@@ -336,7 +336,7 @@ class AiTest(unittest.TestCase):
                         {"id": "m1", "status": "completed", "output": {"url": "https://cdn.polza.ai/m1.png"}}]
         self.voice_task()
         self.assertEqual(sent, [({"text": self.VOICE_POST["post"], "media": "https://cdn.polza.ai/m1.png", "media_type": "photo",
-                                  "time": "15:00", "suggested": True, "image": True}, "2026-10-02")])  # 12:00 is taken
+                                  "time": "11:00", "suggested": True, "image": True}, "2026-10-02")])  # 12:00 is taken, 11:00 is an hour before
         self.assertEqual(self.texts(), [])
         _, post, create, poll1, poll2 = self.requests
         system = json.loads(post.content)["messages"][0]["content"]

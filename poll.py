@@ -15,7 +15,7 @@ import urllib.request
 
 import costs
 from drafthtml import to_html
-from schedule import draft_buttons, next_free_slot, now_msk, scheduled_buttons
+from schedule import draft_buttons, next_free_slot, now_msk, scheduled_buttons, too_close
 from tg import FILE_LIMIT, TOO_BIG, Unavailable, call
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
@@ -147,6 +147,14 @@ class Bot:
                 if b["text"].startswith("• ") and b["callback_data"][3:] in self.slots:
                     self.slots.remove(b["callback_data"][3:])
 
+    def busy(self, mid, at):
+        """Why `at` does not suit post `mid`: another queued post is less than MIN_GAP minutes away; else None."""
+        other = too_close(at, {i["at"] for i in self.queue if i["msg"] != mid})
+        if other:
+            day = "" if other[:10] == at[:10] else f" {other[8:10]}.{other[5:7]}"
+            return f"В {other[11:]}{day} уже стоит пост, а между постами нужен хотя бы час. Выбери другое время."
+        return None
+
     def unqueue(self, mid):
         self.queue[:] = [i for i in self.queue if i["msg"] != mid]
 
@@ -261,6 +269,9 @@ class Bot:
         if m and int(m[1]) <= 23 and int(m[2]) <= 59:
             old = next((b[3:] for b in self.buttons_of(draft) if b.startswith(("at:", "un:", "ui:"))), now_msk())
             at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
+            if self.busy(mid, at):
+                say(self.busy(mid, at))
+                return
             if any(i["msg"] == mid for i in self.queue):
                 self.unqueue(mid)
                 self.enqueue(draft, at)
@@ -327,6 +338,9 @@ class Bot:
     def on_button(self, q):
         draft, data, note = q["message"], q["data"], None
         mid = draft["message_id"]
+        if data.startswith("at:") and self.busy(mid, data[3:]):  # the draft keeps its buttons
+            quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.busy(mid, data[3:]), show_alert=True)
+            return
         if data in ("pub", "rej") or data.startswith("at:"):
             self.release_slot(draft)
         if data == "pub":
