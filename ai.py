@@ -10,9 +10,11 @@ Task kinds (JSON in the TASK env var):
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
-  {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
-  {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
-                                         skipped if today's drafts exist
+  {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times, and the digest; saved to drafts/<today>.json
+  {"kind": "daily", "part": "morning"}  - tomorrow's first 3 posts (07:00-11:00), drafts/<tomorrow>-am.json
+  {"kind": "daily", "part": "day"}  - today's other 4 posts (12:00-21:00) and the digest (22:00)
+  {"kind": "daily", "scheduled": true, "part": ...}  - the same from the schedule (empty TASK: the 21:00
+                                         run makes "morning", the 09:00 run "day"); skipped if that part exists
 New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
 committed by the workflow, which then runs send.yml for the new file.
 """
@@ -28,20 +30,23 @@ import costs
 import polza
 from datetime import date, timedelta
 
-from schedule import SLOTS, draft_buttons, next_free_slot, now_msk
+from schedule import digest_time, draft_buttons, next_free_slot, now_msk, random_times
 from send_drafts import CAPTION_LIMIT, send
 from tg import TOO_BIG, Unavailable, call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
+POST_LIMIT = 600  # characters of a post with its headline, without HTML tags (style-guide.md, Nina 02.10.2026)
+LENGTH = f"400-{POST_LIMIT} characters with the headline, never more than {POST_LIMIT}"
 
 POST_SCHEMA = {
     "type": "object",
     "properties": {
-        "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, <a href='...'>source</a>. Under 1000 characters."},
+        "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, <a href='...'>source</a>, " + LENGTH + "."},
         "media": {"type": "string", "description": "Direct JPG/PNG image URL, or a page URL when media_type is link. Empty string for none."},
         "media_type": {"type": "string", "enum": ["photo", "video", "link", "none"]},
+        "day": {"type": "string", "description": "Publication date YYYY-MM-DD (Moscow): today unless Nina asks for another day, e.g. tomorrow for «на завтра»."},
     },
-    "required": ["text", "media", "media_type"],
+    "required": ["text", "media", "media_type", "day"],
     "additionalProperties": False,
 }
 TOOLS = [
@@ -60,13 +65,23 @@ TOOLS = [
 ]
 PAGE_LIMIT = 8000
 RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
+DAILY_COUNT = 7
+# The day's news comes in two parts, because Nina wakes up after the first posts are due:
+# "morning" is sent the evening before (21:00) for 07:00-11:00, "day" in the morning (09:00) for
+# 12:00-21:00 plus the evening digest at 22:00. A daily task without "part" (by hand) makes the whole day.
+PARTS = {
+    "morning": {"count": 3, "start": "07:00", "end": "11:00", "digest": False, "tomorrow": True},
+    "day": {"count": DAILY_COUNT - 3, "start": "12:00", "end": "21:00", "digest": True, "tomorrow": False},
+    None: {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": False},
+}
+EVENING_CRON = "0 18 * * *"  # ai.yml's 21:00 Moscow schedule: the morning part for tomorrow
 DAILY_SCHEMA = {
     "type": "object",
-    "properties": {"posts": {"type": "array", "description": "5-7 posts for today, the evening digest last.", "items": {
+    "properties": {"posts": {"type": "array", "description": "7 news posts for today, the most relevant first, then the evening digest.", "items": {
         "type": "object",
         "properties": {
-            "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide, in its order."},
-            "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source as <a href='...'>word</a>. Under 1000 characters."},
+            "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
+            "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source woven into the text as <a href='...'>word</a>, " + LENGTH + "."},
             "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post."},
             "source": {"type": "string", "description": "URL of the primary source the facts were checked against."},
         },
@@ -76,11 +91,12 @@ DAILY_SCHEMA = {
     "required": ["posts"],
     "additionalProperties": False,
 }
-EXTRA_TIMES = ["10:30", "13:30", "16:30", "19:30"]  # for days with more than 5 posts
-DAILY_TASK = """Prepare today's posts for the channel: {count} fresh news stories from the last 24 hours, one post each, following the rubrics of the style guide (the evening positive digest last, it sums up the day's good news).
+DAILY_TASK = """Prepare posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each{digest}.{when}
+- Most of them (at least 5 of {count}) about what is new in artificial intelligence and technology: new models and products, AI research, useful AI services, how AI and technology help people. The rest may come from the style guide's other rubrics.
+- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
-- Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
+- Each post strictly follows the style guide (its voice section too), 400-600 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
 - Do not repeat stories from the recent drafts listed above.
 Return the posts as JSON in the given format (this time not through send_drafts: the workflow saves and sends them)."""
 
@@ -144,10 +160,19 @@ Headlines of recent drafts (do not repeat these stories):
 
 How to work:
 - Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
-- Deliver posts only through the send_drafts tool, all in one call. Text is Telegram HTML (<b>, <i>, <a href>), no emoji, under 1000 characters.
+- Deliver posts only through the send_drafts tool, all in one call. Set each post's day to the date it should be published (today unless Nina asks for another day). Text is Telegram HTML (<b>, <i>, <a href>), no emoji, {LENGTH}. Write in the voice the style guide describes: a smart, passionate person, not a press release.
 - Media: a direct JPG/PNG image URL that you saw on the source page (og:image is ideal; avoid .webp and .avif). If only the page itself has a good preview, use media_type "link" with the page URL. Otherwise media_type "none".
 - After send_drafts, finish with one short sentence for Nina (for example, what you found). If her message is not a request for posts, just answer it briefly without calling send_drafts.
 - Today is {now_msk()[:10]} (Moscow)."""
+
+
+def post_day(day):
+    """The model's publication date if it is a valid date from today on, else today."""
+    today = now_msk()[:10]
+    try:
+        return day if date.fromisoformat(day).isoformat() == day and day >= today else today
+    except (TypeError, ValueError):
+        return today
 
 
 def send_posts(posts, task):
@@ -161,11 +186,12 @@ def send_posts(posts, task):
             draft["image"] = True
         if task.get("at"):  # a new version keeps the time of the old one
             draft.update(time=task["at"][11:], suggested=True)
+        day = task.get("day") or post_day(post.get("day"))
         try:
-            sent = send(draft, task.get("day"))
+            sent = send(draft, day)
         except Exception as e:
             print(f"send failed: {e}; retrying without media")
-            sent = send({**draft, "media": None}, task.get("day"))
+            sent = send({**draft, "media": None}, day)
         if task["kind"] == "edit" and task.get("image") and sent:
             remember_edited(sent["message_id"])
         ok += 1
@@ -223,26 +249,37 @@ def run(task):
     return "Готово." if sent else "Не успел закончить, попробуй ещё раз."
 
 
-def times_for(n):
-    """Publish times for n posts: the usual slots (plus in-between ones on busy days), 21:00 last."""
-    day = sorted(SLOTS[:-1] + EXTRA_TIMES[:max(0, n - len(SLOTS))])
-    return day[:n - 1] + [SLOTS[-1]]
-
-
-def draft_path(day):
-    """drafts/<day>.json, or drafts/<day>-2.json etc. if that file is already there."""
-    path, i = f"drafts/{day}.json", 1
+def draft_path(day, name=""):
+    """drafts/<day><name>.json, or drafts/<day><name>-2.json etc. if that file is already there."""
+    path, i = f"drafts/{day}{name}.json", 1
     while os.path.exists(path):
         i += 1
-        path = f"drafts/{day}-{i}.json"
+        path = f"drafts/{day}{name}-{i}.json"
     return path
 
 
-def daily():
-    """Find today's posts, save them to drafts/<today>.json and return the path."""
+def part_day(part):
+    """The day a daily part is for: tomorrow for the morning part (sent the evening before), else today."""
+    today = date.fromisoformat(now_msk()[:10])
+    return str(today + timedelta(days=1) if PARTS[part]["tomorrow"] else today)
+
+
+def daily_task(part):
+    p = PARTS[part]
+    digest = (', and then the evening positive digest (rubric "digest", it sums up the day\'s good news; '
+              'it comes last, in the evening)') if p["digest"] else ' (no digest this time)'
+    when = (" They are published tomorrow morning, so choose stories that will still be fresh and interesting then."
+            if p["tomorrow"] else "")
+    return DAILY_TASK.format(count=p["count"], digest=digest, when=when)
+
+
+def daily(part=None):
+    """Find the posts of a daily part (see PARTS), save them to drafts/<day>.json (the morning part:
+    drafts/<tomorrow>-am.json) and return the path."""
+    p = PARTS[part]
     tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": system_prompt()},
-                {"role": "user", "content": DAILY_TASK.format(count="as many as the style guide sets for today (5-7)")}]
+                {"role": "user", "content": daily_task(part)}]
     for _ in range(20):
         choice = polza.chat(messages, tools=tools, web=True,
                             response_format=polza.json_schema("daily_posts", DAILY_SCHEMA))
@@ -256,14 +293,17 @@ def daily():
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
             continue
         posts = json.loads(polza.text(message))["posts"]
-        digest = [p for p in posts if p["rubric"] == "digest"][-1:]  # always the last post of the day
-        posts = [p for p in posts if p["rubric"] != "digest"][:7 - len(digest)] + digest
-        if not posts:
+        digest = [x for x in posts if x["rubric"] == "digest"][-1:] if p["digest"] else []
+        news = [x for x in posts if x["rubric"] != "digest"][:p["count"]]  # most relevant first
+        if not news + digest:
             raise RuntimeError("no posts in the answer")
-        day = now_msk()[:10]
+        day = part_day(part)
+        now = f"{day}T00:00" if p["tomorrow"] else now_msk()
+        times = random_times(len(news), now, start=p["start"], end=p["end"]) if news else []
+        times = times + [digest_time(times[-1] if times else None)] * len(digest)  # the digest always last
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
-                   "time": t} for p, t in zip(posts, times_for(len(posts)))]
-        path = draft_path(day)
+                   "time": t, "suggested": True} for p, t in zip(news + digest, times)]
+        path = draft_path(day, "-am" if part == "morning" else "")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(drafts, f, ensure_ascii=False, indent=1)
             f.write("\n")
@@ -274,9 +314,11 @@ def daily():
 FAILED_TODAY = "Сегодня черновики не собрались: {}"
 
 
-def drafts_exist(day):
-    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.)."""
-    return any(re.fullmatch(rf"{day}(-\d+)?\.json", name) for name in os.listdir("drafts")) if os.path.isdir("drafts") else False
+def drafts_exist(day, part=None):
+    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.;
+    for the morning part drafts/<day>-am.json etc.)."""
+    name = "-am" if part == "morning" else ""
+    return any(re.fullmatch(rf"{day}{name}(-\d+)?\.json", f) for f in os.listdir("drafts")) if os.path.isdir("drafts") else False
 
 
 TIMEOUT = "Polza AI не ответила вовремя. Попробуй ещё раз чуть позже."
@@ -358,7 +400,7 @@ class NotHeard(Exception):
 VOICE_POST_SCHEMA = {
     "type": "object",
     "properties": {
-        "post": {"type": "string", "description": "The finished post in Telegram HTML, under 1000 characters."},
+        "post": {"type": "string", "description": "The finished post in Telegram HTML, " + LENGTH + "."},
         "image_prompt": {"type": "string", "description": "In English: a picture for the post, what is in it and the style."},
     },
     "required": ["post", "image_prompt"],
@@ -377,7 +419,7 @@ How Nina writes (her voice):
 Examples of her posts:
 {read("style/examples.md")}
 
-Channel style guide (use its formatting rules: headline, paragraphs, links, length):
+Channel style guide (use its formatting rules: headline, paragraphs, links, length; where it differs from the voice description above, the style guide wins: it has Nina's latest decisions):
 {read("style-guide.md")}
 
 Reasons Nina gave when she rejected posts (learn from them):
@@ -386,7 +428,7 @@ Reasons Nina gave when she rejected posts (learn from them):
 Task: you get a rough transcript of her voice message. Make a finished post from it.
 - Keep her thoughts, facts and voice. Invent nothing: no facts, numbers, names, quotes or links that are not in the transcript.
 - Remove filler words, false starts and repetitions; put the thoughts in order.
-- Telegram HTML (<b>headline</b>, paragraphs separated by \n\n, <a href> only for links she said), no emoji, under 1000 characters.
+- Telegram HTML (<b>headline</b>, paragraphs separated by \n\n, <a href> only for links she said), no emoji, {LENGTH}. If she said more than fits, keep her main thought and drop the rest.
 - image_prompt: in English, a picture that fits the post (subject, setting, style), no text in the picture.
 Today is {now_msk()[:10]} (Moscow)."""
 
@@ -444,7 +486,7 @@ def voice_post(transcript, at=None):
         url, note = None, problem(e) or "Картинку нарисовать не получилось."
     else:
         note = None
-    at = at if at and at > now_msk() else next_free_slot(queued_times())
+    at = at if at and at > now_msk() else next_free_slot(queued_times(), now_msk())
     sent = send({"text": post, "media": url, "media_type": "photo" if url else "none",
                  "time": at[11:], "suggested": True, "image": True}, at[:10])
     remember_image(sent["message_id"], prompt)
@@ -515,7 +557,8 @@ def stop_deadline():
 
 
 def main():
-    task = json.loads(os.environ.get("TASK") or '{"kind": "daily", "scheduled": true}')
+    task = json.loads(os.environ.get("TASK") or "null") or {
+        "kind": "daily", "scheduled": True, "part": "morning" if os.environ.get("SCHEDULE") == EVENING_CRON else "day"}
     costs.task = task["kind"]
     start_deadline()
     try:
@@ -526,12 +569,13 @@ def main():
 
 def _main(task):
     if task["kind"] == "daily":
-        day = now_msk()[:10]
-        if task.get("scheduled") and drafts_exist(day):
-            print(f"drafts for {day} already exist, nothing to do")
+        part = task.get("part")
+        day = part_day(part)
+        if task.get("scheduled") and drafts_exist(day, part):
+            print(f"drafts for {day} ({part}) already exist, nothing to do")
             return
         try:
-            path = daily()
+            path = daily(part)
         except (Exception, Deadline) as e:
             stop_deadline()
             notify("sendMessage", chat_id=ADMIN, text=FAILED_TODAY.format(reason(e)))

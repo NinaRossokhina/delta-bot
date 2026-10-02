@@ -94,7 +94,7 @@ class PollTest(unittest.TestCase):
         self.assertEqual(self.bot.queue, [])
 
     def test_state_saved_sorted(self):
-        self.button(1, "at:2026-10-02T18:00"); self.button(2, "at:2026-10-02T09:00"); self.bot.save()
+        self.button(1, "at:2026-10-02T18:00"); self.button(2, "at:2026-10-02T11:00"); self.bot.save()
         self.assertEqual([i["msg"] for i in poll.load("queue.json", [])], [2, 1])
 
     # --- dialog: «Изменить», «Отклонить», free requests, voice -------------
@@ -143,14 +143,14 @@ class PollTest(unittest.TestCase):
         self.ai_on()
         self.voice()
         self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "F1", "mime": "audio/ogg", "duration": 3,
-                                       "at": "2026-10-02T12:00"}])
+                                       "at": "2026-10-02T11:00"}])
         self.assertEqual(self.asked(), ["Получила, работаю над постом"])
 
     def test_audio_file_too(self):
         self.ai_on()
         self.message(audio={"file_id": "A1", "mime_type": "audio/mpeg"})
         self.assertEqual(self.tasks, [{"kind": "voice", "file_id": "A1", "mime": "audio/mpeg", "duration": 0,
-                                       "at": "2026-10-02T12:00"}])
+                                       "at": "2026-10-02T11:00"}])
 
     def test_voice_answer_to_edit_is_the_edit(self):
         self.ai_on()
@@ -207,11 +207,75 @@ class PollTest(unittest.TestCase):
 
     def test_next_free_slot_and_marked_button(self):
         from schedule import next_free_slot
-        self.assertEqual(next_free_slot(set(), "2026-10-02T10:00"), "2026-10-02T12:00")
-        self.assertEqual(next_free_slot({"2026-10-02T12:00", "2026-10-02T15:00"}, "2026-10-02T10:00"), "2026-10-02T18:00")
-        self.assertEqual(next_free_slot(set(), "2026-10-02T21:00"), "2026-10-03T09:00")
-        row = poll.draft_buttons("2026-10-02T18:00", mark=True)["inline_keyboard"][0]
-        self.assertEqual([b["text"] for b in row], ["09:00", "12:00", "15:00", "• 18:00", "21:00"])
+        self.assertEqual(next_free_slot(set(), "2026-10-02T10:00"), "2026-10-02T11:00")
+        # 11:30 and 12:20 are queued: 11:00-13:00 are less than an hour from them
+        self.assertEqual(next_free_slot({"2026-10-02T11:30", "2026-10-02T12:20"}, "2026-10-02T10:00"), "2026-10-02T14:00")
+        self.assertEqual(next_free_slot(set(), "2026-10-02T22:00"), "2026-10-03T07:00")
+        rows = poll.draft_buttons("2026-10-02T18:00", mark=True)["inline_keyboard"]
+        self.assertEqual([[b["text"] for b in row] for row in rows[:-1]],
+                         [["📅 пт, 02.10", "03.10 ▶"],  # today: no «◀»
+                          ["07:00", "08:00", "09:00", "10:00"], ["11:00", "12:00", "13:00", "14:00"],
+                          ["15:00", "16:00", "17:00", "• 18:00"], ["19:00", "20:00", "21:00", "22:00"]])
+        self.assertEqual([b["text"] for b in rows[-1]], ["Изменить", "Сейчас, 02.10", "Отклонить"])
+        rows = poll.draft_buttons("2026-10-03T09:25", mark=True)["inline_keyboard"]  # a random time for tomorrow
+        self.assertEqual([b["text"] for b in rows[0]], ["◀ 02.10", "📅 сб, 03.10", "04.10 ▶"])
+        self.assertEqual([b["callback_data"] for b in rows[0]], ["d:2026-10-02T09:25", "done", "d:2026-10-04T09:25"])
+        self.assertEqual([b["text"] for b in rows[1] + rows[2]][:4], ["07:00", "08:00", "09:00", "• 09:25"])
+        self.assertEqual(rows[1][0]["callback_data"], "at:2026-10-03T07:00")
+
+    def test_past_time_is_refused_not_published(self):
+        self.button(10, "at:2026-10-02T09:00")  # it is 10:00: tapping 09:00 must not publish the post now
+        self.assertEqual(self.bot.queue, [])
+        ans = [p for m, p in self.calls if m == "answerCallbackQuery"][0]
+        self.assertTrue(ans["show_alert"])
+        self.assertIn("02.10 в 09:00 уже прошло", ans["text"])
+        self.bot.publish_due()
+        self.assertNotIn("copyMessage", self.methods())
+        self.reply("9:30", draft(11))
+        self.assertIn("02.10 в 09:30 уже прошло", self.asked()[-1])
+        self.assertEqual(self.bot.queue, [])
+
+    def test_reply_with_date_or_tomorrow(self):
+        self.reply("завтра 9:00", draft(11))
+        self.reply("04.10 15:30", draft(12))
+        self.reply("32.10 15:30", draft(13))  # not a date: an edit request (AI is off: the new text)
+        self.assertEqual([i["at"] for i in self.bot.queue if i["msg"] in (11, 12)], [])  # drafts are not queued by a reply
+        marks = [p["reply_markup"] for m, p in self.calls if m == "editMessageReplyMarkup"]
+        self.assertIn("at:2026-10-03T09:00", str(marks[0]))
+        self.assertIn("at:2026-10-04T15:30", str(marks[1]))
+
+    def test_date_buttons_change_the_day(self):
+        d = draft(10, "2026-10-02T15:40"); d["reply_markup"] = poll.draft_buttons("2026-10-02T15:40", mark=True)
+        self.button(10, "d:2026-10-03T15:40", d)
+        markup = [p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]["reply_markup"]
+        rows = markup["inline_keyboard"]
+        self.assertEqual(rows[0][1]["text"], "📅 сб, 03.10")
+        self.assertIn({"text": "• 15:40", "callback_data": "at:2026-10-03T15:40"}, [b for r in rows for b in r])
+        self.assertEqual(self.bot.queue, [])  # only the date changed
+        self.button(10, "at:2026-10-03T09:00", {**d, "reply_markup": markup})  # tomorrow 09:00 is in the future
+        self.assertEqual(self.bot.queue, [{"msg": 10, "at": "2026-10-03T09:00"}])
+        done = [p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]["reply_markup"]
+        self.assertEqual(done["inline_keyboard"][0][0]["text"], "⏰ 03.10 в 09:00")
+        self.calls.clear()
+        self.button(10, "d:2026-10-01T09:00", d)
+        self.assertNotIn("editMessageReplyMarkup", self.methods())
+
+    def test_time_less_than_an_hour_from_another_post_is_refused(self):
+        self.bot.queue = [{"msg": 1, "at": "2026-10-02T15:00"}]
+        self.button(10, "at:2026-10-02T15:40")
+        self.assertEqual(self.bot.queue, [{"msg": 1, "at": "2026-10-02T15:00"}])  # not queued
+        ans = [p for m, p in self.calls if m == "answerCallbackQuery"][0]
+        self.assertTrue(ans["show_alert"])
+        self.assertIn("В 15:00 уже стоит пост", ans["text"])
+        self.assertNotIn("editMessageReplyMarkup", self.methods())  # the draft keeps its buttons
+        self.button(10, "at:2026-10-02T16:00")  # exactly an hour later is fine
+        self.assertIn({"msg": 10, "at": "2026-10-02T16:00"}, self.bot.queue)
+        self.button(10, "at:2026-10-02T16:30")  # moving the same post: only the others count
+        self.assertIn({"msg": 10, "at": "2026-10-02T16:30"}, self.bot.queue)
+        self.calls.clear()
+        self.reply("15:20", draft(11))  # a reply with a time too
+        self.assertEqual(self.asked(), ["В 15:00 уже стоит пост, а между постами нужен хотя бы час. Выбери другое время."])
+        self.assertFalse(any(i["msg"] == 11 for i in self.bot.queue))
 
 
     # --- review fixes -------------------------------------------------------
@@ -232,15 +296,15 @@ class PollTest(unittest.TestCase):
         self.ai_on()
         self.bot.queue = [{"msg": 1, "at": "2026-10-02T12:00"}]
         self.voice(); self.voice(); self.voice()
-        self.assertEqual([t["at"] for t in self.tasks], ["2026-10-02T15:00", "2026-10-02T18:00", "2026-10-02T21:00"])
+        self.assertEqual([t["at"] for t in self.tasks], ["2026-10-02T11:00", "2026-10-02T13:00", "2026-10-02T14:00"])
         self.bot.save()
-        self.assertEqual(poll.Bot().slots, ["2026-10-02T15:00", "2026-10-02T18:00", "2026-10-02T21:00"])
-        # Nina rejects the 18:00 one: the time is free for the next voice post
-        d = draft(20); d["reply_markup"] = poll.draft_buttons("2026-10-02T18:00", image=True, mark=True)
+        self.assertEqual(poll.Bot().slots, ["2026-10-02T11:00", "2026-10-02T13:00", "2026-10-02T14:00"])
+        # Nina rejects the 13:00 one: the time is free for the next voice post
+        d = draft(20); d["reply_markup"] = poll.draft_buttons("2026-10-02T13:00", image=True, mark=True)
         self.button(20, "rej", d)
         self.button(99, "skip")  # no reason: the next voice is a new post, not the answer to «Почему?»
         self.voice()
-        self.assertEqual(self.tasks[-1]["at"], "2026-10-02T18:00")
+        self.assertEqual(self.tasks[-1]["at"], "2026-10-02T13:00")
 
     def test_long_voice_warns_and_too_big_is_refused(self):
         self.ai_on()

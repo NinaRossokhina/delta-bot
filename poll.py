@@ -12,17 +12,18 @@ import os
 import re
 import sys
 import urllib.request
+from datetime import datetime, timedelta
 
 import costs
 from drafthtml import to_html
-from schedule import draft_buttons, next_free_slot, now_msk, scheduled_buttons
+from schedule import ddmm, draft_buttons, next_free_slot, now_msk, scheduled_buttons, too_close
 from tg import FILE_LIMIT, TOO_BIG, Unavailable, call
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
 CHANNEL = os.environ["CHANNEL_ID"]  # e.g. @delta24news
 AI_ENABLED = os.environ.get("AI_ENABLED") == "true"
 QUEUE, PENDING, FEEDBACK, SLOTS = "queue.json", "pending.json", "feedback.md", "slots.json"
-TIME = re.compile(r"^\s*(\d{1,2})[:.](\d{2})\s*$")
+TIME = re.compile(r"^\s*(?:(завтра|\d{1,2}\.\d{1,2})\s+)?(\d{1,2})[:.](\d{2})\s*$", re.I)  # "15:30", "03.10 15:30", "завтра 9:00"
 NO_AI = ("Пока я понимаю только кнопки под черновиками, ответ со временем (15:30) "
          "и ответ с исправленным текстом. Писать новые посты и слушать голосовые научусь, когда подключат ключ Polza AI.")
 GOT_VOICE = "Получила, работаю над постом"
@@ -113,6 +114,20 @@ def react(msg, emoji="👍"):
           reaction=[{"type": "emoji", "emoji": emoji}])
 
 
+def reply_day(word, draft):
+    """The day of a time reply: the draft's own day, tomorrow for «завтра», or DD.MM this year; None if invalid."""
+    today = now_msk()[:10]
+    if not word:
+        return next((b[3:13] for b in Bot.buttons_of(draft) if b.startswith(("at:", "un:", "ui:"))), today)
+    if word.lower() == "завтра":
+        return f"{datetime.fromisoformat(today) + timedelta(days=1):%Y-%m-%d}"
+    d, mo = word.split(".")
+    try:
+        return f"{datetime(int(today[:4]), int(mo), int(d)):%Y-%m-%d}"
+    except ValueError:
+        return None
+
+
 class Bot:
     def __init__(self):
         self.queue = load(QUEUE, [])
@@ -146,6 +161,17 @@ class Bot:
             for b in row:
                 if b["text"].startswith("• ") and b["callback_data"][3:] in self.slots:
                     self.slots.remove(b["callback_data"][3:])
+
+    def busy(self, mid, at):
+        """Why `at` does not suit post `mid`: it has passed, or another queued post is less than MIN_GAP
+        minutes away; else None."""
+        if at <= now_msk():
+            return f"{ddmm(at[:10])} в {at[11:]} уже прошло. Выбери время позже или другой день (◀ ▶ над временем)."
+        other = too_close(at, {i["at"] for i in self.queue if i["msg"] != mid})
+        if other:
+            day = "" if other[:10] == at[:10] else f" {other[8:10]}.{other[5:7]}"
+            return f"В {other[11:]}{day} уже стоит пост, а между постами нужен хотя бы час. Выбери другое время."
+        return None
 
     def unqueue(self, mid):
         self.queue[:] = [i for i in self.queue if i["msg"] != mid]
@@ -234,6 +260,10 @@ class Bot:
         return (datetime.fromisoformat(now_msk()) - asked).total_seconds() < 30 * 60
 
     @staticmethod
+    def button_texts(message):
+        return [b["text"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
+
+    @staticmethod
     def buttons_of(message):
         return [b["callback_data"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
 
@@ -255,12 +285,16 @@ class Bot:
         return any(b == "img" or b.startswith("ui:") for b in Bot.buttons_of(message))
 
     def on_draft_reply(self, draft, text, msg):
-        """Reply to a draft: "15:30" moves it, other text is an edit request (or the new text without AI)."""
+        """Reply to a draft: "15:30" moves it (on its day), "03.10 15:30" or "завтра 15:30" also sets the day;
+        other text is an edit request (or the new text without AI)."""
         mid = draft["message_id"]
         m = TIME.match(text)
-        if m and int(m[1]) <= 23 and int(m[2]) <= 59:
-            old = next((b[3:] for b in self.buttons_of(draft) if b.startswith(("at:", "un:", "ui:"))), now_msk())
-            at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
+        day = reply_day(m[1], draft) if m else None
+        if m and day and int(m[2]) <= 23 and int(m[3]) <= 59:
+            at = f"{day}T{int(m[2]):02d}:{m[3]}"
+            if self.busy(mid, at):
+                say(self.busy(mid, at), reply_parameters={"message_id": mid})
+                return
             if any(i["msg"] == mid for i in self.queue):
                 self.unqueue(mid)
                 self.enqueue(draft, at)
@@ -327,6 +361,9 @@ class Bot:
     def on_button(self, q):
         draft, data, note = q["message"], q["data"], None
         mid = draft["message_id"]
+        if data.startswith("at:") and self.busy(mid, data[3:]):  # the draft keeps its buttons
+            quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.busy(mid, data[3:]), show_alert=True)
+            return
         if data in ("pub", "rej") or data.startswith("at:"):
             self.release_slot(draft)
         if data == "pub":
@@ -344,6 +381,13 @@ class Bot:
             self.enqueue(draft, at)
             set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
             note = f"Выйдет в {at[11:]}"
+        elif data.startswith("d:"):  # another day: the same buttons for it
+            if data[2:12] < now_msk()[:10]:
+                note = "Этот день уже прошёл"
+            else:
+                marked = any(t.startswith("• ") for t in self.button_texts(draft))
+                set_buttons(mid, draft_buttons(data[2:], image=self.has_image_button(draft), mark=marked))
+                note = f"Дата: {ddmm(data[2:12])}"
         elif data.startswith(("un:", "ui:")):
             self.unqueue(mid)
             set_buttons(mid, draft_buttons(data[3:], image=data.startswith("ui:")))

@@ -1,7 +1,9 @@
 name: AI tasks
 on:
   schedule:
-    - cron: "45 4 * * *"  # 07:45 Moscow (UTC+3); GitHub may start it a bit late
+    # Times are UTC (Moscow is UTC+3); GitHub may start a run a bit late.
+    - cron: "0 18 * * *"  # 21:00 Moscow: tomorrow's morning posts (07:00-11:00), approved in the evening; ai.EVENING_CRON
+    - cron: "0 6 * * *"   # 09:00 Moscow: today's other posts (12:00-21:00) and the digest
   workflow_dispatch:
     inputs:
       task:
@@ -24,7 +26,8 @@ jobs:
       - id: ai
         run: python ai.py
         env:
-          TASK: ${{ github.event.inputs.task }}  # empty for the schedule: ai.py runs the morning daily task
+          TASK: ${{ github.event.inputs.task }}  # empty for the schedule: ai.py runs a daily part
+          SCHEDULE: ${{ github.event.schedule }}  # which cron started it: picks the part
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
