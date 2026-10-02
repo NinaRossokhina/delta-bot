@@ -7,14 +7,5 @@
   "media_type": "photo",
   "day": "2026-10-02",
   "asked": "2026-10-02T22:35"
- },
- "83": {
-  "kind": "edit",
-  "msg": 80,
-  "html": "<b>Тире из нейротекстов убрали, но ИИ всё равно выдаёт себя</b>\n\nПомните охоту на нейросети по длинному тире? Разработчики услышали: у Opus 5.5 оно стало встречаться на 99% реже, чем у Opus 5. Только привычки никуда не делись, они просто переехали.\n\nТеперь Claude то и дело объясняет, почему что-то важно: «this matters» у него в 116 раз чаще, чем у людей. А GPT-6 Astra любит спорить с воображаемым оппонентом: «это не просто…», и тоже в сто с лишним раз чаще. Всего Graphite нашла 13 тысяч таких словечек, <a href=\"https://techcrunch.com/2026/10/01/opus-5-5-loves-to-tell-you-this-matters-and-other-ai-writing-tells/\">пишет TechCrunch</a>. Словечки-паразиты есть и у машин.",
-  "media": "AgACAgQAAxkDAANQasAG8vYvFVEeYteUJpEEn1HzrQMAAnYPaxu9bdVQtFZ28nqNp68BAAMCAAN3AAM9BA",
-  "media_type": "photo",
-  "day": "2026-10-02",
-  "asked": "2026-10-02T22:35"
  }
 }
