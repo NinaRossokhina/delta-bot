@@ -489,6 +489,19 @@ class AiTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ai.main()
         self.assertEqual(ai.problem(tg.Unavailable("x")), ai.TG_DOWN)
+    def test_edited_voice_post_is_remembered(self):
+        with mock.patch("ai.send", lambda d, day=None: {"message_id": 88}):
+            self.replies = [completion(tool_calls=[("send_drafts", {"posts": [POST]})]), completion("Готово.")]
+            os.environ["TASK"] = json.dumps({"kind": "edit", "msg": 7, "html": "<b>Старый</b>", "day": "2026-10-02",
+                                             "image": True, "instructions": "короче"})
+            ai.main()
+            self.assertEqual(open("voice_edited.jsonl").read(), '{"msg": 88}\n')
+            os.environ["TASK"] = json.dumps({"kind": "edit", "msg": 9, "html": "<b>Новость</b>", "day": "2026-10-02",
+                                             "instructions": "короче"})
+            self.replies = [completion(tool_calls=[("send_drafts", {"posts": [POST]})]), completion("Готово.")]
+            ai.main()  # an ordinary news post is not a voice post
+            self.assertEqual(open("voice_edited.jsonl").read(), '{"msg": 88}\n')
+
 
 if __name__ == "__main__":
     unittest.main()

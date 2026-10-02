@@ -31,7 +31,7 @@ jobs:
       # Bot state the task changed: a reason for feedback.md (an answer to «Почему?»), image prompts
       # for «Другая картинка» (images.jsonl), what the requests cost (costs.jsonl, for /cost)
       - if: always() && steps.ai.outcome != 'skipped'
-        run: bash save_state.sh "Bot state from AI tasks" feedback.md images.jsonl costs.jsonl
+        run: bash save_state.sh "Bot state from AI tasks" feedback.md images.jsonl voice_edited.jsonl costs.jsonl
       # Daily drafts: commit the new file, then start send.yml for it
       # (a push made with GITHUB_TOKEN does not trigger other workflows by itself).
       - if: always() && steps.ai.outputs.file != ''

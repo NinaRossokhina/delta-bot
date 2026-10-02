@@ -71,6 +71,14 @@ class StyleTest(unittest.TestCase):
         self.assertIn("## 1. Пост 3 · 2026-01-03\n\n_заголовок и ссылка_\n\nЗаголовок\n\nТекст и ссылка.", examples)
         self.assertNotIn("99", examples)
 
+    def test_learned_examples_survive_regeneration(self):
+        old = ("# Образцы\n\n## 1. Пост 3 · 2026-10-01\n\nСтарый\n\n"
+               "## 2. Голосовой пост после правок · 2026-10-02\n\n_Финальная версия._\n\nРоботы готовят\n")
+        new = "# Образцы\n\n## 1. Пост 5 · 2026-10-01\n\nА\n\n## 2. Пост 6 · 2026-10-01\n\nБ\n"
+        out = analyze_style.keep_learned(new, old)
+        self.assertTrue(out.endswith("## 3. Голосовой пост после правок · 2026-10-02\n\n_Финальная версия._\n\nРоботы готовят\n"), out)
+        self.assertNotIn("Старый", out)
+
 
 if __name__ == "__main__":
     unittest.main()

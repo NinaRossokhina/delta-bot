@@ -21,6 +21,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: python poll.py
       - name: Save the queue
-        run: bash save_state.sh "Update bot state" queue.json pending.json slots.json feedback.md
+        run: bash save_state.sh "Update bot state" queue.json pending.json slots.json feedback.md style/examples.md
       - name: Confirm processed updates
         run: if [ -f .confirm_offset ]; then python poll.py --confirm "$(cat .confirm_offset)"; fi

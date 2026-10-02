@@ -70,6 +70,35 @@ def publish(message_id):
     quiet(mark, message_id, f"✅ Опубликовано в {now_msk()[11:]}")  # the post is out; a lost label must not repeat it
 
 
+EDITED, EXAMPLES = "voice_edited.jsonl", "style/examples.md"
+
+
+def edited_voice_posts():
+    """Ids of voice posts' new versions after «Изменить» (written by ai.py)."""
+    try:
+        return {json.loads(line)["msg"] for line in open(EDITED, encoding="utf-8") if line.strip()}
+    except FileNotFoundError:
+        return set()
+
+
+def plain(html_text):
+    """Post HTML as plain text, the way examples.md quotes posts."""
+    import html
+    return html.unescape(re.sub(r"<[^>]+>", "", html_text)).strip()
+
+
+def learn(html_text):
+    """Add a published voice post (final version after edits) to style/examples.md."""
+    try:
+        old = open(EXAMPLES, encoding="utf-8").read()
+    except FileNotFoundError:
+        old = "# Образцы постов\n"
+    n = len(re.findall(r"^## ", old, re.M)) + 1
+    with open(EXAMPLES, "a", encoding="utf-8") as f:
+        f.write(f"{'' if old.endswith(chr(10)) else chr(10)}\n## {n}. Голосовой пост после правок · {now_msk()[:10]}\n\n"
+                f"_Финальная версия, которую Нина опубликовала после правок._\n\n{plain(html_text)}\n")
+
+
 def quiet(fn, *args, **kwargs):
     """A call that must not undo the work already done (a reaction, a note, a button label):
     if Telegram fails here, the update is still treated as handled, so the task is not started twice."""
@@ -87,7 +116,8 @@ def react(msg, emoji="👍"):
 class Bot:
     def __init__(self):
         self.queue = load(QUEUE, [])
-        self.pending = load(PENDING, {})  # question message id -> what the answer is for
+        self.pending = load(PENDING, {})
+        self.edited = edited_voice_posts()  # question message id -> what the answer is for
         self.slots = load(SLOTS, [])  # times suggested to posts from voice messages ("•"), not taken yet
 
     def save(self):
@@ -233,7 +263,7 @@ class Bot:
             at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
             if any(i["msg"] == mid for i in self.queue):
                 self.unqueue(mid)
-                self.queue.append({"msg": mid, "at": at})
+                self.enqueue(draft, at)
                 set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
             else:
                 set_buttons(mid, draft_buttons(at, self.has_image_button(draft)))
@@ -305,10 +335,13 @@ class Bot:
                 publish(mid)
             except RuntimeError as e:
                 note = f"Не получилось опубликовать: {str(e)[:150]}"
+            else:
+                if mid in self.edited:
+                    quiet(learn, to_html(draft)[0])
         elif data.startswith("at:"):
             at = data[3:]
             self.unqueue(mid)
-            self.queue.append({"msg": mid, "at": at})
+            self.enqueue(draft, at)
             set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
             note = f"Выйдет в {at[11:]}"
         elif data.startswith(("un:", "ui:")):
@@ -357,7 +390,17 @@ class Bot:
             except RuntimeError as e:
                 print(f"publishing {item['msg']} failed: {e}")
                 quiet(say, f"Не получилось опубликовать пост на {item['at'][11:]}: {str(e)[:150]}")
+            else:
+                if item.get("html"):
+                    quiet(learn, item["html"])
             self.unqueue(item["msg"])
+
+    def enqueue(self, draft, at):
+        """Queue a draft. A voice post's version after edits keeps its text, for examples.md on publishing."""
+        item = {"msg": draft["message_id"], "at": at}
+        if draft["message_id"] in self.edited:
+            item["html"] = to_html(draft)[0]
+        self.queue.append(item)
 
 
 def main():

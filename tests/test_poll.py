@@ -301,6 +301,37 @@ class PollTest(unittest.TestCase):
             poll.main()
         self.assertEqual(len(self.tasks), 1)
         self.assertEqual(open(".confirm_offset").read(), "9")
+    # --- learning: an edited voice post goes to style/examples.md when published ----
+    def edited_post(self, mid=10):
+        open("voice_edited.jsonl", "w").write(f'{{"msg": {mid}}}\n')
+        os.mkdir("style"); open("style/examples.md", "w", encoding="utf-8").write("# Образцы постов\n\n## 1. Пост 3\n\nТекст\n")
+        self.bot = poll.Bot()
+        d = self.image_draft(mid)
+        d["caption"] = "Роботы научились готовить\n\nТеперь & навсегда."
+        d["caption_entities"] = [{"type": "bold", "offset": 0, "length": 25}]
+        return d
+
+    def test_edited_voice_post_published_now_goes_to_examples(self):
+        self.button(10, "pub", self.edited_post())
+        text = open("style/examples.md", encoding="utf-8").read()
+        self.assertTrue(text.endswith("## 2. Голосовой пост после правок · 2026-10-02\n\n"
+                                      "_Финальная версия, которую Нина опубликовала после правок._\n\n"
+                                      "Роботы научились готовить\n\nТеперь & навсегда.\n"), text)
+
+    def test_edited_voice_post_published_on_time_goes_to_examples(self):
+        self.button(10, "at:2026-10-02T12:00", self.edited_post())
+        self.bot.save(); self.bot = poll.Bot()  # next run
+        self.now = "2026-10-02T12:00"
+        self.bot.publish_due()
+        self.assertIn("Роботы научились готовить\n\nТеперь & навсегда.", open("style/examples.md", encoding="utf-8").read())
+
+    def test_unedited_post_does_not_go_to_examples(self):
+        d = self.edited_post(mid=10)
+        d["message_id"] = 11
+        self.button(11, "pub", d)
+        self.button(11, "at:2026-10-02T09:00", d); self.bot.publish_due()
+        self.assertEqual(open("style/examples.md", encoding="utf-8").read().count("## "), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

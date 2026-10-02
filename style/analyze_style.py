@@ -4,6 +4,7 @@ The model writes the voice description and picks 10–15 typical posts by id; ex
 Needs POLZA_API_KEY. Run after build_style.py: python style/analyze_style.py
 """
 import json
+import re
 import math
 import sys
 from pathlib import Path
@@ -71,11 +72,24 @@ def examples_md(items, picked):
     return "\n\n".join(parts) + "\n"
 
 
+LEARNED = "Голосовой пост после правок"  # sections poll.py adds when Nina publishes an edited voice post
+
+
+def keep_learned(new, old):
+    """Carry the learned sections of the old examples.md over to the new one, renumbered."""
+    sections = [s for s in re.split(r"\n(?=## )", old) if s.startswith("## ") and LEARNED in s.split("\n")[0]]
+    n = len(re.findall(r"^## ", new, re.M))
+    for i, sec in enumerate(sections, n + 1):
+        new = new.rstrip("\n") + "\n\n" + re.sub(r"^## \d+\.", f"## {i}.", sec.strip("\n")) + "\n"
+    return new
+
+
 def main():
     items = read(HERE / "posts.txt")
     result = analyze(items)
     (HERE / "my-voice.md").write_text(result["voice"].strip() + "\n", encoding="utf-8")
-    (HERE / "examples.md").write_text(examples_md(items, result["examples"]), encoding="utf-8")
+    old = (HERE / "examples.md").read_text(encoding="utf-8") if (HERE / "examples.md").exists() else ""
+    (HERE / "examples.md").write_text(keep_learned(examples_md(items, result["examples"]), old), encoding="utf-8")
     print(f"{len(items)} постов разобрано, образцов: {len(result['examples'])}")
 
 

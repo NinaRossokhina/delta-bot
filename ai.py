@@ -162,12 +162,23 @@ def send_posts(posts, task):
         if task.get("at"):  # a new version keeps the time of the old one
             draft.update(time=task["at"][11:], suggested=True)
         try:
-            send(draft, task.get("day"))
+            sent = send(draft, task.get("day"))
         except Exception as e:
             print(f"send failed: {e}; retrying without media")
-            send({**draft, "media": None}, task.get("day"))
+            sent = send({**draft, "media": None}, task.get("day"))
+        if task["kind"] == "edit" and task.get("image") and sent:
+            remember_edited(sent["message_id"])
         ok += 1
     return ok
+
+
+EDITED = "voice_edited.jsonl"  # {"msg": id} per line: new versions of voice posts after «Изменить»
+
+
+def remember_edited(msg):
+    """poll.py adds such a post to style/examples.md when it is published (merge=union, like images.jsonl)."""
+    with open(EDITED, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"msg": msg}) + "\n")
 
 
 def use_tool(tool_call, task):
