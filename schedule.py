@@ -9,8 +9,9 @@ def now_msk():
     return datetime.now(MSK).strftime("%Y-%m-%dT%H:%M")
 
 
-SLOTS = ["09:00", "12:00", "15:00", "18:00", "21:00"]
-DAY_START, DAY_END, MIN_GAP = "07:00", "21:00", 60  # window and spacing of the daily news' random times
+SLOTS = [f"{h:02d}:00" for h in range(7, 23)]  # time buttons under a draft: every hour 07:00-22:00
+ROW = 4  # time buttons per row
+DAY_START, DAY_END, MIN_GAP = "07:00", "21:00", 60  # window of the daily news' random times; posts at least MIN_GAP minutes apart
 DIGEST_TIME = "22:00"  # the evening digest, after the news
 
 
@@ -23,11 +24,10 @@ def draft_buttons(at, image=False, mark=False):
     (set by replying "15:30") gets its own button. mark=True marks `at` as the suggested time
     with "•"; image=True adds «Другая картинка» (posts from voice messages)."""
     day, times = at[:10], sorted(set(SLOTS) | {at[11:]})
-    rows = [
-        [{"text": f"• {t}" if mark and t == at[11:] else t, "callback_data": f"at:{day}T{t}"} for t in times],
-        [{"text": "Изменить", "callback_data": "edit"}, {"text": "Сейчас", "callback_data": "pub"},
-         {"text": "Отклонить", "callback_data": "rej"}],
-    ]
+    buttons = [{"text": f"• {t}" if mark and t == at[11:] else t, "callback_data": f"at:{day}T{t}"} for t in times]
+    rows = [buttons[i:i + ROW] for i in range(0, len(buttons), ROW)]
+    rows.append([{"text": "Изменить", "callback_data": "edit"}, {"text": "Сейчас", "callback_data": "pub"},
+                 {"text": "Отклонить", "callback_data": "rej"}])
     if image:
         rows.append([IMAGE_BUTTON])
     return {"inline_keyboard": rows}
@@ -41,15 +41,21 @@ def scheduled_buttons(at, image=False):
     ]]}
 
 
+def too_close(at, taken, gap=MIN_GAP):
+    """A time in `taken` less than `gap` minutes from `at` (all 'YYYY-MM-DDTHH:MM'), else None."""
+    when = datetime.fromisoformat(at)
+    return next((t for t in sorted(taken) if abs(datetime.fromisoformat(t) - when) < timedelta(minutes=gap)), None)
+
+
 def next_free_slot(taken, now=None):
-    """The nearest slot after now (Moscow) that no queued post takes: 'YYYY-MM-DDTHH:MM'.
+    """The nearest slot after now (Moscow) at least MIN_GAP minutes from every queued post: 'YYYY-MM-DDTHH:MM'.
     `taken` is a set of such strings (queue.json "at" values). Looks up to a week ahead."""
     now = now or now_msk()
     day = datetime.fromisoformat(now[:10])
     for _ in range(7):
         for t in SLOTS:
             at = f"{day:%Y-%m-%d}T{t}"
-            if at > now and at not in taken:
+            if at > now and not too_close(at, taken):
                 return at
         day += timedelta(days=1)
     return f"{day:%Y-%m-%d}T{SLOTS[0]}"
