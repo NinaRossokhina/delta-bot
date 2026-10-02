@@ -1,0 +1,23 @@
+[
+ {
+  "text": "<b>У робота Atlas новая рука, и в ней всего четыре пальца</b>\n\nBoston Dynamics проверила, нужен ли роботу мизинец, и решила, что нет. Без него рука всё равно перекладывает предмет в ладони, ловит выскальзывающую вещь и жмёт на курок инструмента. А пятый палец — это ещё три мотора: дороже и больше шансов сломаться.\n\nСуставов стало 13 вместо семи, на кончиках и ладони есть датчики касания. По <a href=\"https://interestingengineering.com/ai-robotics/boston-dynamics-13-dof-robot-hand\">описанию Interesting Engineering</a>, такая рука держит мини-холодильник тяжелее 45 кг и рассчитана на дрель и сварочную горелку.",
+  "media": "https://cms.interestingengineering.com/wp-content/uploads/2026/10/Thumbnails-for-IE-Boston-dynamics-new-hand.jpg",
+  "media_type": "photo",
+  "time": "07:15",
+  "suggested": true
+ },
+ {
+  "text": "<b>В Швеции ИИ-учёный сам придумывает и ставит опыты на дрожжах</b>\n\nВ Chalmers собрали замкнутую лабораторию. ИИ изучает всё, что известно о пекарских дрожжах, формулирует вопрос, предлагает эксперимент, оценивает результат и уточняет свои идеи. И так по кругу, почти без человека.\n\nАвторы сравнивают это с беспилотными авто. Учёных он не заменяет: приоритеты и этику по-прежнему определяют люди. Зато рутину гипотез и проверок берёт на себя, и это может ускорить биологию и медицину, <a href=\"https://www.chalmers.se/en/current/news/ai-scientist-autonomously-generates-and-validates-new-biological-discoveries/\">рассказали в Chalmers</a>.",
+  "media": "https://images.euronews.com/articles/stories/09/93/58/25/1200x675_cmsv2_44f299e5-ff26-5fc9-b553-7e7abdf4b692-9935825.jpg",
+  "media_type": "photo",
+  "time": "08:55",
+  "suggested": true
+ },
+ {
+  "text": "<b>ИИ рисует кружку, из которой нельзя пить. Теперь это чинится</b>\n\nНейросети для 3D-печати знают, как предмет выглядит, но не как он работает. У кружки запросто окажется глухая крышка. Когда модель воссоздала популярные вещи с Thingiverse, почти 80% вышли с изъянами, <a href=\"https://news.mit.edu/2026/instructmesh-tool-lets-users-repair-ai-3d-models-then-fabricate-them-1001\">пишет MIT</a>.\n\nВ InstructMesh достаточно выделить проблемное место и словами сказать, что поправить. Новички находили и чинили ошибки примерно в 90% случаев. А ещё получилась кружка с драконом вместо ручки и наколенник «под джинсу».",
+  "media": "https://news.mit.edu/sites/default/files/images/202609/mit-csail-InstructMesh.jpg",
+  "media_type": "photo",
+  "time": "10:55",
+  "suggested": true
+ }
+]
