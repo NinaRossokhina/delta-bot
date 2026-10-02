@@ -10,9 +10,11 @@ Task kinds (JSON in the TASK env var):
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
-  {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times; saved to drafts/<today>.json
-  {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
-                                         skipped if today's drafts exist
+  {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times, and the digest; saved to drafts/<today>.json
+  {"kind": "daily", "part": "morning"}  - tomorrow's first 3 posts (07:00-11:00), drafts/<tomorrow>-am.json
+  {"kind": "daily", "part": "day"}  - today's other 4 posts (12:00-21:00) and the digest (22:00)
+  {"kind": "daily", "scheduled": true, "part": ...}  - the same from the schedule (empty TASK: the 21:00
+                                         run makes "morning", the 09:00 run "day"); skipped if that part exists
 New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
 committed by the workflow, which then runs send.yml for the new file.
 """
@@ -61,6 +63,15 @@ TOOLS = [
 PAGE_LIMIT = 8000
 RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
 DAILY_COUNT = 7
+# The day's news comes in two parts, because Nina wakes up after the first posts are due:
+# "morning" is sent the evening before (21:00) for 07:00-11:00, "day" in the morning (09:00) for
+# 12:00-21:00 plus the evening digest at 22:00. A daily task without "part" (by hand) makes the whole day.
+PARTS = {
+    "morning": {"count": 3, "start": "07:00", "end": "11:00", "digest": False, "tomorrow": True},
+    "day": {"count": DAILY_COUNT - 3, "start": "12:00", "end": "21:00", "digest": True, "tomorrow": False},
+    None: {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": False},
+}
+EVENING_CRON = "0 18 * * *"  # ai.yml's 21:00 Moscow schedule: the morning part for tomorrow
 DAILY_SCHEMA = {
     "type": "object",
     "properties": {"posts": {"type": "array", "description": "7 news posts for today, the most relevant first, then the evening digest.", "items": {
@@ -77,9 +88,9 @@ DAILY_SCHEMA = {
     "required": ["posts"],
     "additionalProperties": False,
 }
-DAILY_TASK = """Prepare today's posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each, and then the evening positive digest (rubric "digest", it sums up the day's good news).
+DAILY_TASK = """Prepare posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each{digest}.{when}
 - Most of them (at least 5 of {count}) about what is new in artificial intelligence and technology: new models and products, AI research, useful AI services, how AI and technology help people. The rest may come from the style guide's other rubrics.
-- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day; the digest comes last, in the evening.
+- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
 - Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
@@ -225,20 +236,37 @@ def run(task):
     return "Готово." if sent else "Не успел закончить, попробуй ещё раз."
 
 
-def draft_path(day):
-    """drafts/<day>.json, or drafts/<day>-2.json etc. if that file is already there."""
-    path, i = f"drafts/{day}.json", 1
+def draft_path(day, name=""):
+    """drafts/<day><name>.json, or drafts/<day><name>-2.json etc. if that file is already there."""
+    path, i = f"drafts/{day}{name}.json", 1
     while os.path.exists(path):
         i += 1
-        path = f"drafts/{day}-{i}.json"
+        path = f"drafts/{day}{name}-{i}.json"
     return path
 
 
-def daily():
-    """Find today's posts, save them to drafts/<today>.json and return the path."""
+def part_day(part):
+    """The day a daily part is for: tomorrow for the morning part (sent the evening before), else today."""
+    today = date.fromisoformat(now_msk()[:10])
+    return str(today + timedelta(days=1) if PARTS[part]["tomorrow"] else today)
+
+
+def daily_task(part):
+    p = PARTS[part]
+    digest = (', and then the evening positive digest (rubric "digest", it sums up the day\'s good news; '
+              'it comes last, in the evening)') if p["digest"] else ' (no digest this time)'
+    when = (" They are published tomorrow morning, so choose stories that will still be fresh and interesting then."
+            if p["tomorrow"] else "")
+    return DAILY_TASK.format(count=p["count"], digest=digest, when=when)
+
+
+def daily(part=None):
+    """Find the posts of a daily part (see PARTS), save them to drafts/<day>.json (the morning part:
+    drafts/<tomorrow>-am.json) and return the path."""
+    p = PARTS[part]
     tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": system_prompt()},
-                {"role": "user", "content": DAILY_TASK.format(count=DAILY_COUNT)}]
+                {"role": "user", "content": daily_task(part)}]
     for _ in range(20):
         choice = polza.chat(messages, tools=tools, web=True,
                             response_format=polza.json_schema("daily_posts", DAILY_SCHEMA))
@@ -252,16 +280,17 @@ def daily():
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
             continue
         posts = json.loads(polza.text(message))["posts"]
-        digest = [p for p in posts if p["rubric"] == "digest"][-1:]
-        news = [p for p in posts if p["rubric"] != "digest"][:DAILY_COUNT]  # most relevant first
+        digest = [x for x in posts if x["rubric"] == "digest"][-1:] if p["digest"] else []
+        news = [x for x in posts if x["rubric"] != "digest"][:p["count"]]  # most relevant first
         if not news + digest:
             raise RuntimeError("no posts in the answer")
-        day = now_msk()[:10]
-        times = random_times(len(news)) if news else []
+        day = part_day(part)
+        now = f"{day}T00:00" if p["tomorrow"] else now_msk()
+        times = random_times(len(news), now, start=p["start"], end=p["end"]) if news else []
         times = times + [digest_time(times[-1] if times else None)] * len(digest)  # the digest always last
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
                    "time": t, "suggested": True} for p, t in zip(news + digest, times)]
-        path = draft_path(day)
+        path = draft_path(day, "-am" if part == "morning" else "")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(drafts, f, ensure_ascii=False, indent=1)
             f.write("\n")
@@ -272,9 +301,11 @@ def daily():
 FAILED_TODAY = "Сегодня черновики не собрались: {}"
 
 
-def drafts_exist(day):
-    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.)."""
-    return any(re.fullmatch(rf"{day}(-\d+)?\.json", name) for name in os.listdir("drafts")) if os.path.isdir("drafts") else False
+def drafts_exist(day, part=None):
+    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.;
+    for the morning part drafts/<day>-am.json etc.)."""
+    name = "-am" if part == "morning" else ""
+    return any(re.fullmatch(rf"{day}{name}(-\d+)?\.json", f) for f in os.listdir("drafts")) if os.path.isdir("drafts") else False
 
 
 TIMEOUT = "Polza AI не ответила вовремя. Попробуй ещё раз чуть позже."
@@ -513,7 +544,8 @@ def stop_deadline():
 
 
 def main():
-    task = json.loads(os.environ.get("TASK") or '{"kind": "daily", "scheduled": true}')
+    task = json.loads(os.environ.get("TASK") or "null") or {
+        "kind": "daily", "scheduled": True, "part": "morning" if os.environ.get("SCHEDULE") == EVENING_CRON else "day"}
     costs.task = task["kind"]
     start_deadline()
     try:
@@ -524,12 +556,13 @@ def main():
 
 def _main(task):
     if task["kind"] == "daily":
-        day = now_msk()[:10]
-        if task.get("scheduled") and drafts_exist(day):
-            print(f"drafts for {day} already exist, nothing to do")
+        part = task.get("part")
+        day = part_day(part)
+        if task.get("scheduled") and drafts_exist(day, part):
+            print(f"drafts for {day} ({part}) already exist, nothing to do")
             return
         try:
-            path = daily()
+            path = daily(part)
         except (Exception, Deadline) as e:
             stop_deadline()
             notify("sendMessage", chat_id=ADMIN, text=FAILED_TODAY.format(reason(e)))

@@ -59,14 +59,15 @@ def _minutes(hhmm):
     return int(hhmm[:2]) * 60 + int(hhmm[3:5])
 
 
-def random_times(n, now=None, rng=random):
-    """n random publish times 'HH:MM' for today's drafts, ascending, on a 5-minute grid: between
-    DAY_START and DAY_END Moscow time and at least MIN_GAP minutes apart (less if the rest of the day
-    is too short, e.g. a run by hand in the evening). The first time goes to the most relevant post."""
+def random_times(n, now=None, rng=random, start=DAY_START, end=DAY_END):
+    """n random publish times 'HH:MM' for a day's drafts, ascending, on a 5-minute grid: between
+    `start` and `end` Moscow time and at least MIN_GAP minutes apart (less if the rest of the day
+    is too short, e.g. a run by hand in the evening). The first time goes to the most relevant post.
+    `now` ('YYYY-MM-DDTHH:MM') is the earliest moment; for tomorrow's drafts pass '<tomorrow>T00:00'."""
     now = now or now_msk()
     last = 23 * 60 + 55
-    start = min(max(_minutes(DAY_START), -(-(_minutes(now[11:16]) + 15) // 5) * 5), last)  # not sooner than in 15 minutes
-    end = min(max(_minutes(DAY_END), start + 5 * (n - 1)), last)
+    start = min(max(_minutes(start), -(-(_minutes(now[11:16]) + 15) // 5) * 5), last)  # not sooner than in 15 minutes
+    end = min(max(_minutes(end), start + 5 * (n - 1)), last)
     gap = min(MIN_GAP, (end - start) // max(n - 1, 1) // 5 * 5)
     slack = (end - start - gap * (n - 1)) // 5
     offsets = sorted(rng.randint(0, slack) for _ in range(n))

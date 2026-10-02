@@ -155,7 +155,7 @@ class AiTest(unittest.TestCase):
         with mock.patch("ai.fetch_page", return_value={"title": "T"}), \
                 mock.patch("ai.random_times", return_value=times) as rt:
             ai.main()
-        rt.assert_called_once_with(7)
+        rt.assert_called_once_with(7, "2026-10-02T10:00", start="07:00", end="21:00")
         self.assertEqual(open(out).read(), "file=drafts/2026-10-02.json\n")
         drafts = json.load(open("drafts/2026-10-02.json", encoding="utf-8"))
         self.assertEqual([d["time"] for d in drafts], times + ["22:00"])  # the model's order: most relevant first
@@ -192,6 +192,38 @@ class AiTest(unittest.TestCase):
         self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))  # the digest, always last
         self.assertEqual(drafts[-1]["time"], "22:00")
         self.assertEqual([d["time"] for d in drafts], sorted(d["time"] for d in drafts))
+
+    def test_morning_part_is_for_tomorrow(self):
+        os.mkdir("drafts")
+        self.replies = [completion(json.dumps(self.daily_posts()))]
+        os.environ.update(TASK="", SCHEDULE=ai.EVENING_CRON)  # the 21:00 run
+        self.addCleanup(os.environ.pop, "SCHEDULE")
+        ai.main()
+        drafts = json.load(open("drafts/2026-10-03-am.json"))
+        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(3)])  # no digest
+        times = [d["time"] for d in drafts]
+        self.assertTrue("07:00" <= times[0] and times[-1] <= "11:00" and times == sorted(times), times)
+        task = self.bodies()[0]["messages"][1]["content"]
+        self.assertIn("exactly 3", task)
+        self.assertIn("tomorrow morning", task)
+        self.assertIn("no digest", task)
+        ai.main()  # the morning part for tomorrow is there: nothing to do
+        self.assertEqual(len(self.requests), 1)
+        self.assertFalse(ai.drafts_exist("2026-10-03"))  # the day part is still to come
+
+    def test_day_part_after_the_morning_one(self):
+        os.mkdir("drafts")
+        open("drafts/2026-10-02-am.json", "w").write("[]")  # sent last evening
+        self.replies = [completion(json.dumps(self.daily_posts()))]
+        os.environ["TASK"] = ""  # the 09:00 run
+        ai.main()
+        drafts = json.load(open("drafts/2026-10-02.json"))
+        self.assertEqual(len(drafts), 5)  # 4 news and the digest
+        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))
+        self.assertEqual(drafts[-1]["time"], "22:00")
+        times = [d["time"] for d in drafts[:-1]]
+        self.assertTrue("12:00" <= times[0] and times[-1] <= "21:00" and times == sorted(times), times)
+        self.assertIn("exactly 4", self.bodies()[0]["messages"][1]["content"])
 
     def test_daily_error_tells_nina(self):
         self.replies = [completion("не JSON")]
