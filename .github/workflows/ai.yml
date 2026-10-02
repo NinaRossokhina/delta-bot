@@ -28,13 +28,15 @@ jobs:
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
-      # A voice answer to «Почему?» adds a line to feedback.md
+      # Voice messages: an answer to «Почему?» adds a line to feedback.md, a post saves its image prompt
+      # to images.json (for «Другая картинка»)
       - if: always() && steps.ai.outcome != 'skipped'
         run: |
           git add feedback.md
+          [ -f images.json ] && git add images.json
           git diff --cached --quiet && exit 0
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -qm "Feedback from a voice message"
+            commit -qm "Bot state from AI tasks"
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
           exit 1
       # Daily drafts: commit the new file, then start send.yml for it

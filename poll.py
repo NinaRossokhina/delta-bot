@@ -160,21 +160,26 @@ class Bot:
         return [b["callback_data"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
 
     def is_open_draft(self, message):
-        return any(b in ("pub", "edit") or b.startswith(("at:", "un:")) for b in self.buttons_of(message))
+        return any(b in ("pub", "edit") or b.startswith(("at:", "un:", "ui:")) for b in self.buttons_of(message))
+
+    @staticmethod
+    def has_image_button(message):
+        """A post from a voice message: it has «Другая картинка» (or will get it back on «Отменить»)."""
+        return any(b == "img" or b.startswith("ui:") for b in Bot.buttons_of(message))
 
     def on_draft_reply(self, draft, text, msg):
         """Reply to a draft: "15:30" moves it, other text is an edit request (or the new text without AI)."""
         mid = draft["message_id"]
         m = TIME.match(text)
         if m and int(m[1]) <= 23 and int(m[2]) <= 59:
-            old = next((b[3:] for b in self.buttons_of(draft) if b.startswith(("at:", "un:"))), now_msk())
+            old = next((b[3:] for b in self.buttons_of(draft) if b.startswith(("at:", "un:", "ui:"))), now_msk())
             at = f"{old[:10]}T{int(m[1]):02d}:{m[2]}"
             if any(i["msg"] == mid for i in self.queue):
                 self.unqueue(mid)
                 self.queue.append({"msg": mid, "at": at})
-                set_buttons(mid, scheduled_buttons(at))
+                set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
             else:
-                set_buttons(mid, draft_buttons(at))
+                set_buttons(mid, draft_buttons(at, self.has_image_button(draft)))
             react(msg)
         elif AI_ENABLED:
             self.start_edit(self.draft_info(draft), text, msg)
@@ -186,8 +191,9 @@ class Bot:
     def draft_info(draft):
         html, media, media_type = to_html(draft)
         at = next((b[3:] for b in Bot.buttons_of(draft) if b.startswith("at:")), None)
-        return {"kind": "edit", "msg": draft["message_id"], "html": html,
+        info = {"kind": "edit", "msg": draft["message_id"], "html": html,
                 "media": media, "media_type": media_type, "day": (at or now_msk())[:10]}
+        return {**info, "image": True} if Bot.has_image_button(draft) else info
 
     def start_edit(self, about, instructions, msg):
         if not AI_ENABLED:
@@ -198,14 +204,15 @@ class Bot:
             mark(about["msg"], "✏️ Переписываю…")
 
     @staticmethod
-    def ai(task, msg):
+    def ai(task, msg=None):
         try:
             run_ai(task)
         except Exception as e:
             print(f"could not start AI task: {e!r}")
             say("Не получилось взяться за задачу, попробуй ещё раз чуть позже.")
             return False
-        react(msg, "👀")
+        if msg:
+            react(msg, "👀")
         return True
 
     def replace_text(self, draft, msg):
@@ -236,11 +243,17 @@ class Bot:
             at = data[3:]
             self.unqueue(mid)
             self.queue.append({"msg": mid, "at": at})
-            set_buttons(mid, scheduled_buttons(at))
+            set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
             note = f"Выйдет в {at[11:]}"
-        elif data.startswith("un:"):
+        elif data.startswith(("un:", "ui:")):
             self.unqueue(mid)
-            set_buttons(mid, draft_buttons(data[3:]))
+            set_buttons(mid, draft_buttons(data[3:], image=data.startswith("ui:")))
+        elif data == "img":
+            if not AI_ENABLED:
+                note = "Картинки рисую через Polza AI, а ключ не подключён"
+            elif self.ai({**self.draft_info(draft), "kind": "image", "buttons": draft.get("reply_markup")}):
+                set_buttons(mid, {"inline_keyboard": [[{"text": "🎨 Рисую другую картинку…", "callback_data": "done"}]]})
+                note = "Рисую другую картинку"
         elif data == "edit":
             self.ask("Что поправить? Ответь текстом или голосовым.", self.draft_info(draft))
         elif data == "rej":

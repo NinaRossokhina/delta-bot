@@ -7,8 +7,10 @@ Draft file format: a list of objects
    "media": "https://.../image.jpg",      # optional
    "media_type": "photo" | "video" | "link",  # optional, default photo;
                                                # "link" = text post with a link preview of media
-   "time": "12:00"}                            # optional, Moscow time, if not one of the usual slots;
+   "time": "12:00",                            # optional, Moscow time, if not one of the usual slots;
                                                # the date comes from the file name
+   "suggested": true,                          # optional: mark "time" on its button as the suggested one
+   "image": true}                              # optional: add «Другая картинка» (posts from voice messages)
 Text uses Telegram HTML formatting.
 """
 import json
@@ -32,7 +34,8 @@ def send(draft, day=None):
     if kind == "none":
         media = None
     day = day or now_msk()[:10]
-    buttons = draft_buttons(f"{day}T{draft.get('time', SLOTS[0])}")
+    buttons = draft_buttons(f"{day}T{draft.get('time', SLOTS[0])}", image=bool(draft.get("image")),
+                            mark=bool(draft.get("suggested")))
     if media and kind != "link" and len(text) <= CAPTION_LIMIT:
         method = "sendVideo" if kind == "video" else "sendPhoto"
         return call(method, chat_id=ADMIN, **{kind: media}, caption=text,

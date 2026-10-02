@@ -178,6 +178,39 @@ class PollTest(unittest.TestCase):
         self.assertEqual(self.asked()[-1], poll.NO_AI)
         self.assertIn("99", self.bot.pending)
 
+    # --- posts from voice messages: «Другая картинка» -----------------------
+    def image_draft(self, mid=10):
+        d = draft(mid); d["reply_markup"] = poll.draft_buttons("2026-10-02T15:00", image=True)
+        d["photo"] = [{"file_id": "P"}]; d["caption"] = d.pop("text")
+        return d
+
+    def test_other_image_starts_image_task(self):
+        self.ai_on()
+        d = self.image_draft()
+        self.button(10, "img", d)
+        task = self.tasks[0]
+        self.assertEqual((task["kind"], task["msg"], task["media_type"], task["image"], task["buttons"]),
+                         ("image", 10, "photo", True, d["reply_markup"]))
+        self.assertIn("Рисую", str([p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]))
+
+    def test_image_button_survives_schedule_and_cancel(self):
+        d = self.image_draft()
+        self.button(10, "at:2026-10-02T15:00", d)
+        markup = [p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]["reply_markup"]
+        self.assertIn("ui:2026-10-02T15:00", str(markup))
+        self.button(10, "ui:2026-10-02T15:00", {**d, "reply_markup": markup})
+        markup = [p for m, p in self.calls if m == "editMessageReplyMarkup"][-1]["reply_markup"]
+        self.assertEqual(markup["inline_keyboard"][-1], [{"text": "Другая картинка", "callback_data": "img"}])
+        self.assertEqual(self.bot.queue, [])
+
+    def test_next_free_slot_and_marked_button(self):
+        from schedule import next_free_slot
+        self.assertEqual(next_free_slot(set(), "2026-10-02T10:00"), "2026-10-02T12:00")
+        self.assertEqual(next_free_slot({"2026-10-02T12:00", "2026-10-02T15:00"}, "2026-10-02T10:00"), "2026-10-02T18:00")
+        self.assertEqual(next_free_slot(set(), "2026-10-02T21:00"), "2026-10-03T09:00")
+        row = poll.draft_buttons("2026-10-02T18:00", mark=True)["inline_keyboard"][0]
+        self.assertEqual([b["text"] for b in row], ["09:00", "12:00", "15:00", "• 18:00", "21:00"])
+
 
 if __name__ == "__main__":
     unittest.main()

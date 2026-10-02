@@ -91,3 +91,40 @@ def to_mp3(audio):
     """Convert any audio ffmpeg understands to mp3 (ffmpeg is installed by the ai.yml workflow)."""
     return subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-f", "mp3", "pipe:1"],
                           input=audio, capture_output=True, check=True, timeout=120).stdout
+
+
+IMAGE_MODEL = "google/gemini-3.1-flash-image-preview"
+MEDIA_POLL_SECONDS, MEDIA_MAX_SECONDS = 3, 180
+
+
+def media(model, input, poll=MEDIA_POLL_SECONDS, limit=MEDIA_MAX_SECONDS, sleep=None, clock=None):
+    """Generate an image (or other media) with POST /media and wait for it with GET /media/{id}
+    every `poll` seconds, at most `limit` seconds. Returns the result URL (output.url).
+    Raises TimeoutError if it is not ready in time, RuntimeError if the generation failed."""
+    import time
+    sleep, clock = sleep or time.sleep, clock or time.monotonic
+    job = client().post("/media", cast_to=object, body={"model": model, "input": input, "async": True})
+    started = clock()
+    while True:
+        status = job.get("status")
+        if status == "completed":
+            url = _output_url(job.get("output"))
+            if not url:
+                raise RuntimeError("media: completed without output.url")
+            return url
+        if status in ("failed", "cancelled"):
+            error = job.get("error") or {}
+            raise RuntimeError(f"media {status}: {error.get('message', error) if isinstance(error, dict) else error}")
+        if clock() - started >= limit:
+            raise TimeoutError(f"media {job.get('id')} not ready after {limit} s")
+        sleep(poll)
+        job = client().get(f"/media/{job['id']}", cast_to=object)
+
+
+def _output_url(output):
+    """output.url; also accepts a list of outputs (first one) or a bare URL string."""
+    if isinstance(output, list):
+        output = output[0] if output else None
+    if isinstance(output, dict):
+        return output.get("url")
+    return output if isinstance(output, str) else None

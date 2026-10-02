@@ -7,6 +7,8 @@ Task kinds (JSON in the TASK env var):
   {"kind": "voice", "file_id": "...", "mime": "audio/ogg"}  - Nina's voice or audio message: transcribe it
    and send her the text; with "edit": {...edit task without instructions} it is her answer to
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
+  {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
+   draw a new image for a post from a voice message and put it in place of the old one
   {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
   {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
                                          skipped if today's drafts exist
@@ -23,8 +25,8 @@ import urllib.request
 import polza
 from datetime import date, timedelta
 
-from schedule import SLOTS, draft_buttons, now_msk
-from send_drafts import send
+from schedule import SLOTS, draft_buttons, next_free_slot, now_msk
+from send_drafts import CAPTION_LIMIT, send
 from tg import call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
@@ -152,6 +154,8 @@ def send_posts(posts, task):
                  "media": post["media"] if post["media_type"] != "none" and post["media"] else None}
         if task["kind"] == "edit" and draft["media"] == task.get("media"):
             draft["media_type"] = task.get("media_type") or draft["media_type"]
+        if task.get("image"):  # a post from a voice message keeps «Другая картинка»
+            draft["image"] = True
         try:
             send(draft, task.get("day"))
         except Exception as e:
@@ -297,18 +301,128 @@ class NotHeard(Exception):
     pass
 
 
+VOICE_POST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "post": {"type": "string", "description": "The finished post in Telegram HTML, under 1000 characters."},
+        "image_prompt": {"type": "string", "description": "In English: a picture for the post, what is in it and the style."},
+    },
+    "required": ["post", "image_prompt"],
+    "additionalProperties": False,
+}
+NO_TEXT = ", no text, no letters, no captions, no watermarks, no logos"
+IMAGES = "images.json"  # message id of a post from a voice message -> its image prompt
+
+
+def voice_system_prompt():
+    return f"""You turn Nina's voice messages into posts for Delta (@delta24news), her Russian-language Telegram channel about AI and technology. The post is published under her name, so it must sound like her.
+
+How Nina writes (her voice):
+{read("style/my-voice.md")}
+
+Examples of her posts:
+{read("style/examples.md")}
+
+Channel style guide (use its formatting rules: headline, paragraphs, links, length):
+{read("style-guide.md")}
+
+Reasons Nina gave when she rejected posts (learn from them):
+{read("feedback.md") or "(none yet)"}
+
+Task: you get a rough transcript of her voice message. Make a finished post from it.
+- Keep her thoughts, facts and voice. Invent nothing: no facts, numbers, names, quotes or links that are not in the transcript.
+- Remove filler words, false starts and repetitions; put the thoughts in order.
+- Telegram HTML (<b>headline</b>, paragraphs separated by \n\n, <a href> only for links she said), no emoji, under 1000 characters.
+- image_prompt: in English, a picture that fits the post (subject, setting, style), no text in the picture.
+Today is {now_msk()[:10]} (Moscow)."""
+
+
+def write_voice_post(transcript):
+    """A finished post from a voice transcript: {"post": html, "image_prompt": english}."""
+    messages = [{"role": "system", "content": voice_system_prompt()},
+                {"role": "user", "content": f"Transcript of the voice message:\n{transcript}"}]
+    choice = polza.chat(messages, max_tokens=4000, response_format=polza.json_schema("voice_post", VOICE_POST_SCHEMA))
+    if choice.finish_reason == "content_filter" or getattr(choice.message, "refusal", None):
+        raise RuntimeError("the model refused")
+    return json.loads(polza.text(choice.message))
+
+
+def make_image(image_prompt):
+    """URL of a 4:3 picture for a post (Polza media, Nano Banana 2)."""
+    return polza.media(polza.IMAGE_MODEL, {"prompt": image_prompt.strip().rstrip(".") + NO_TEXT, "aspect_ratio": "4:3"})
+
+
+def remember_image(msg, prompt):
+    images = json.loads(read(IMAGES) or "{}")
+    images[str(msg)] = prompt
+    with open(IMAGES, "w", encoding="utf-8") as f:
+        json.dump(dict(list(images.items())[-200:]), f, ensure_ascii=False, indent=1)
+        f.write("\n")
+
+
+def queued_times():
+    try:
+        return {i["at"] for i in json.loads(read("queue.json") or "[]")}
+    except json.JSONDecodeError:
+        return set()
+
+
+def voice_post(transcript):
+    """Post from a voice message: text in Nina's voice, a picture, a draft at the nearest free slot."""
+    result = write_voice_post(transcript)
+    post, prompt = result["post"].strip(), result["image_prompt"].strip()
+    try:
+        url = make_image(prompt)
+    except Exception as e:
+        print(f"image failed: {e!r}")
+        url, note = None, problem(e) or "Картинку нарисовать не получилось."
+    else:
+        note = None
+    at = next_free_slot(queued_times())
+    sent = send({"text": post, "media": url, "media_type": "photo" if url else "none",
+                 "time": at[11:], "suggested": True, "image": True}, at[:10])
+    remember_image(sent["message_id"], prompt)
+    if note:
+        return f"{note} Пост без картинки, нажми «Другая картинка», чтобы попробовать ещё раз."
+    return None
+
+
 def voice(task):
     """Transcribe Nina's voice message and act on it; returns the final message for her."""
     text = polza.transcribe(download(task["file_id"]), task.get("mime") or "audio/ogg")
     if not text:
         raise NotHeard()
-    call("sendMessage", chat_id=ADMIN, text=f"Расшифровка:\n{text}")
     if task.get("edit"):
+        call("sendMessage", chat_id=ADMIN, text=f"Расшифровка:\n{text}")
         return run({**task["edit"], "instructions": text})
     if task.get("reason"):
         save_reason(task["reason"], text)
-        return "Записала причину, учту в следующих постах."
-    return None
+        return f"Записала причину: «{text}». Учту в следующих постах."
+    return voice_post(text)
+
+
+def image_prompt_for(html_text):
+    """An image prompt for a post whose prompt was not saved."""
+    schema = {"type": "object", "properties": {"image_prompt": VOICE_POST_SCHEMA["properties"]["image_prompt"]},
+              "required": ["image_prompt"], "additionalProperties": False}
+    choice = polza.chat([{"role": "user", "content": f"Describe in English a picture for this Telegram post, no text in it:\n\n{html_text}"}],
+                        max_tokens=1000, response_format=polza.json_schema("image", schema))
+    return json.loads(polza.text(choice.message))["image_prompt"]
+
+
+def new_image(task):
+    """«Другая картинка»: draw a new picture and put it in the draft instead of the old one."""
+    prompt = json.loads(read(IMAGES) or "{}").get(str(task["msg"])) or image_prompt_for(task["html"])
+    url = make_image(prompt)
+    remember_image(task["msg"], prompt)
+    caption = {"caption": task["html"], "parse_mode": "HTML"}
+    if task.get("media_type") == "photo" and len(task["html"]) <= CAPTION_LIMIT:
+        call("editMessageMedia", chat_id=ADMIN, message_id=task["msg"],
+             media={"type": "photo", "media": url, **caption}, reply_markup=task["buttons"])
+    else:  # the draft is a text message: show the picture as its link preview
+        call("editMessageText", chat_id=ADMIN, message_id=task["msg"], text=task["html"], parse_mode="HTML",
+             link_preview_options={"url": url, "prefer_large_media": True, "show_above_text": True},
+             reply_markup=task["buttons"])
 
 
 def main():
@@ -330,13 +444,15 @@ def main():
         return
     edit = task if task["kind"] == "edit" else task.get("edit")
     try:
-        answer = voice(task) if task["kind"] == "voice" else run(task)
+        answer = {"voice": voice, "image": new_image}.get(task["kind"], run)(task)
     except Exception as e:
         text = NOT_HEARD if isinstance(e, NotHeard) else problem(e) or "Что-то пошло не так, попробуй ещё раз чуть позже."
         call("sendMessage", chat_id=ADMIN, text=text)
         if edit:  # give the old draft its buttons back
             call("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
-                 reply_markup=draft_buttons(f"{edit['day']}T09:00"))
+                 reply_markup=draft_buttons(f"{edit['day']}T09:00", image=bool(edit.get("image"))))
+        if task["kind"] == "image" and task.get("buttons"):
+            call("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"], reply_markup=task["buttons"])
         if isinstance(e, NotHeard):
             return
         raise
