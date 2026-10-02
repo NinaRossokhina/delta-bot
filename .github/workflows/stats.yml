@@ -1,0 +1,26 @@
+name: Weekly stats
+on:
+  schedule:
+    - cron: "30 4 * * 1"  # Monday 07:30 Moscow (UTC+3), before the 07:45 drafts; GitHub may start it a bit late
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      ADMIN_CHAT_ID: "813825039"
+      CHANNEL_ID: "@delta24news"
+    steps:
+      - uses: actions/checkout@v4
+      # Views and reactions come from the public page t.me/s/delta24news (the Bot API does not give views).
+      - id: stats
+        run: python stats.py
+      # Posts' numbers for ai.py (topics readers like); append-only, merge=union
+      - run: bash save_state.sh "Weekly channel stats" stats.jsonl
+      - if: failure() && steps.stats.outcome == 'failure'
+        run: |
+          python -c 'from tg import call; import os
+          call("sendMessage", chat_id=os.environ["ADMIN_CHAT_ID"], text="Не получилось собрать статистику канала за неделю. Подробности во вкладке Actions → «Weekly stats».")'
