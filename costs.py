@@ -12,7 +12,7 @@ from schedule import now_msk
 FILE = "costs.jsonl"
 task = "other"  # what the money is spent on; ai.py sets it to the task kind
 TASKS = {"daily": "черновики на день", "chat": "просьбы", "edit": "правки", "voice": "посты из голосовых",
-         "image": "картинки", "style": "голос канала", "other": "другое"}
+         "image": "картинки", "hot": "срочные новости", "style": "голос канала", "other": "другое"}
 MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь",
           "ноябрь", "декабрь"]
 
