@@ -44,8 +44,9 @@ POST_SCHEMA = {
         "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, <a href='...'>source</a>, " + LENGTH + "."},
         "media": {"type": "string", "description": "Direct JPG/PNG image URL, or a page URL when media_type is link. Empty string for none."},
         "media_type": {"type": "string", "enum": ["photo", "video", "link", "none"]},
+        "day": {"type": "string", "description": "Publication date YYYY-MM-DD (Moscow): today unless Nina asks for another day, e.g. tomorrow for «на завтра»."},
     },
-    "required": ["text", "media", "media_type"],
+    "required": ["text", "media", "media_type", "day"],
     "additionalProperties": False,
 }
 TOOLS = [
@@ -159,10 +160,19 @@ Headlines of recent drafts (do not repeat these stories):
 
 How to work:
 - Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
-- Deliver posts only through the send_drafts tool, all in one call. Text is Telegram HTML (<b>, <i>, <a href>), no emoji, {LENGTH}. Write in the voice the style guide describes: a smart, passionate person, not a press release.
+- Deliver posts only through the send_drafts tool, all in one call. Set each post's day to the date it should be published (today unless Nina asks for another day). Text is Telegram HTML (<b>, <i>, <a href>), no emoji, {LENGTH}. Write in the voice the style guide describes: a smart, passionate person, not a press release.
 - Media: a direct JPG/PNG image URL that you saw on the source page (og:image is ideal; avoid .webp and .avif). If only the page itself has a good preview, use media_type "link" with the page URL. Otherwise media_type "none".
 - After send_drafts, finish with one short sentence for Nina (for example, what you found). If her message is not a request for posts, just answer it briefly without calling send_drafts.
 - Today is {now_msk()[:10]} (Moscow)."""
+
+
+def post_day(day):
+    """The model's publication date if it is a valid date from today on, else today."""
+    today = now_msk()[:10]
+    try:
+        return day if date.fromisoformat(day).isoformat() == day and day >= today else today
+    except (TypeError, ValueError):
+        return today
 
 
 def send_posts(posts, task):
@@ -176,11 +186,12 @@ def send_posts(posts, task):
             draft["image"] = True
         if task.get("at"):  # a new version keeps the time of the old one
             draft.update(time=task["at"][11:], suggested=True)
+        day = task.get("day") or post_day(post.get("day"))
         try:
-            sent = send(draft, task.get("day"))
+            sent = send(draft, day)
         except Exception as e:
             print(f"send failed: {e}; retrying without media")
-            sent = send({**draft, "media": None}, task.get("day"))
+            sent = send({**draft, "media": None}, day)
         if task["kind"] == "edit" and task.get("image") and sent:
             remember_edited(sent["message_id"])
         ok += 1

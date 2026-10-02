@@ -18,15 +18,34 @@ DIGEST_TIME = "22:00"  # the evening digest, after the news
 IMAGE_BUTTON = {"text": "Другая картинка", "callback_data": "img"}
 
 
-def draft_buttons(at, image=False, mark=False):
-    """Buttons under a draft that is not scheduled yet: one per time slot, the tapped one sets
-    the publish time. `at` is 'YYYY-MM-DDTHH:MM' Moscow time; a time outside SLOTS
-    (set by replying "15:30") gets its own button. mark=True marks `at` as the suggested time
-    with "•"; image=True adds «Другая картинка» (posts from voice messages)."""
+WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+
+
+def ddmm(day):
+    """'2026-10-03' -> '03.10'."""
+    return f"{day[8:10]}.{day[5:7]}"
+
+
+def shift_day(day, days):
+    return f"{datetime.fromisoformat(day) + timedelta(days=days):%Y-%m-%d}"
+
+
+def draft_buttons(at, image=False, mark=False, now=None):
+    """Buttons under a draft that is not scheduled yet. `at` is 'YYYY-MM-DDTHH:MM' Moscow time: its day
+    is the publish date, shown in the first row with «◀» / «▶» to change it (d:<new at>); then one button
+    per time slot of that day, the tapped one sets the publish time. A time outside SLOTS (set by
+    replying "15:30" or a random daily time) gets its own button; mark=True marks `at` as the suggested
+    time with "•". «Сейчас» shows today's date. image=True adds «Другая картинка» (posts from voice messages)."""
+    now = now or now_msk()
     day, times = at[:10], sorted(set(SLOTS) | {at[11:]})
+    date = [{"text": f"📅 {WEEKDAYS[datetime.fromisoformat(day).weekday()]}, {ddmm(day)}", "callback_data": "done"},
+            {"text": f"{ddmm(shift_day(day, 1))} ▶", "callback_data": f"d:{shift_day(day, 1)}T{at[11:]}"}]
+    if day > now[:10]:
+        date.insert(0, {"text": f"◀ {ddmm(shift_day(day, -1))}", "callback_data": f"d:{shift_day(day, -1)}T{at[11:]}"})
     buttons = [{"text": f"• {t}" if mark and t == at[11:] else t, "callback_data": f"at:{day}T{t}"} for t in times]
-    rows = [buttons[i:i + ROW] for i in range(0, len(buttons), ROW)]
-    rows.append([{"text": "Изменить", "callback_data": "edit"}, {"text": "Сейчас", "callback_data": "pub"},
+    rows = [date] + [buttons[i:i + ROW] for i in range(0, len(buttons), ROW)]
+    rows.append([{"text": "Изменить", "callback_data": "edit"},
+                 {"text": f"Сейчас, {ddmm(now[:10])}", "callback_data": "pub"},
                  {"text": "Отклонить", "callback_data": "rej"}])
     if image:
         rows.append([IMAGE_BUTTON])
@@ -36,7 +55,7 @@ def draft_buttons(at, image=False, mark=False):
 def scheduled_buttons(at, image=False):
     """A scheduled draft: «Отменить» brings back draft_buttons (ui: instead of un: keeps «Другая картинка»)."""
     return {"inline_keyboard": [[
-        {"text": f"⏰ В очереди на {at[11:]}", "callback_data": "done"},
+        {"text": f"⏰ {ddmm(at[:10])} в {at[11:]}", "callback_data": "done"},
         {"text": "Отменить", "callback_data": f"{'ui' if image else 'un'}:{at}"},
     ]]}
 

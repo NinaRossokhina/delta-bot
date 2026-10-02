@@ -47,6 +47,14 @@ class AiTest(unittest.TestCase):
 
     def bodies(self): return [json.loads(r.content) for r in self.requests]
 
+    def test_chat_drafts_for_tomorrow(self):
+        posts = [{**POST, "day": "2026-10-03"}, {**POST, "day": "2026-10-01"}, {**POST, "day": "завтра"}]
+        self.replies = [completion(tool_calls=[("send_drafts", {"posts": posts})]), completion("Готово.")]
+        os.environ["TASK"] = json.dumps({"kind": "chat", "text": "пришли 3 черновика на завтра"})
+        ai.main()
+        self.assertEqual([day for _, day in self.sent], ["2026-10-03", "2026-10-02", "2026-10-02"])  # a bad day: today
+        self.assertIn("day", ai.POST_SCHEMA["required"])
+
     def test_chat_sends_drafts_and_answers(self):
         self.replies = [completion(tool_calls=[("send_drafts", {"posts": [POST, {**POST, "media": "", "media_type": "none"}]})]),
                         completion("Нашла две новости.")]
