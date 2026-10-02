@@ -10,7 +10,7 @@ Task kinds (JSON in the TASK env var):
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
-  {"kind": "daily"}  - the day's 5-7 posts, saved to drafts/<today>.json
+  {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times; saved to drafts/<today>.json
   {"kind": "daily", "scheduled": true}  - the same from the morning schedule (empty TASK);
                                          skipped if today's drafts exist
 New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
@@ -28,7 +28,7 @@ import costs
 import polza
 from datetime import date, timedelta
 
-from schedule import SLOTS, draft_buttons, next_free_slot, now_msk
+from schedule import draft_buttons, next_free_slot, now_msk, random_times
 from send_drafts import CAPTION_LIMIT, send
 from tg import TOO_BIG, Unavailable, call, download
 
@@ -59,13 +59,14 @@ TOOLS = [
     ),
 ]
 PAGE_LIMIT = 8000
-RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
+RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor"]
+DAILY_COUNT = 7
 DAILY_SCHEMA = {
     "type": "object",
-    "properties": {"posts": {"type": "array", "description": "5-7 posts for today, the evening digest last.", "items": {
+    "properties": {"posts": {"type": "array", "description": "7 posts for today, the most relevant first.", "items": {
         "type": "object",
         "properties": {
-            "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide, in its order."},
+            "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
             "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source as <a href='...'>word</a>. Under 1000 characters."},
             "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post."},
             "source": {"type": "string", "description": "URL of the primary source the facts were checked against."},
@@ -76,8 +77,9 @@ DAILY_SCHEMA = {
     "required": ["posts"],
     "additionalProperties": False,
 }
-EXTRA_TIMES = ["10:30", "13:30", "16:30", "19:30"]  # for days with more than 5 posts
-DAILY_TASK = """Prepare today's posts for the channel: {count} fresh news stories from the last 24 hours, one post each, following the rubrics of the style guide (the evening positive digest last, it sums up the day's good news).
+DAILY_TASK = """Prepare today's posts for the channel: exactly {count} fresh news stories from the last 24 hours, one post each.
+- Most of them (at least 5 of {count}) about what is new in artificial intelligence and technology: new models and products, AI research, useful AI services, how AI and technology help people. The rest may come from the style guide's other rubrics.
+- Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
 - Each post strictly follows the style guide, under 1000 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
@@ -223,12 +225,6 @@ def run(task):
     return "Готово." if sent else "Не успел закончить, попробуй ещё раз."
 
 
-def times_for(n):
-    """Publish times for n posts: the usual slots (plus in-between ones on busy days), 21:00 last."""
-    day = sorted(SLOTS[:-1] + EXTRA_TIMES[:max(0, n - len(SLOTS))])
-    return day[:n - 1] + [SLOTS[-1]]
-
-
 def draft_path(day):
     """drafts/<day>.json, or drafts/<day>-2.json etc. if that file is already there."""
     path, i = f"drafts/{day}.json", 1
@@ -242,7 +238,7 @@ def daily():
     """Find today's posts, save them to drafts/<today>.json and return the path."""
     tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": system_prompt()},
-                {"role": "user", "content": DAILY_TASK.format(count="as many as the style guide sets for today (5-7)")}]
+                {"role": "user", "content": DAILY_TASK.format(count=DAILY_COUNT)}]
     for _ in range(20):
         choice = polza.chat(messages, tools=tools, web=True,
                             response_format=polza.json_schema("daily_posts", DAILY_SCHEMA))
@@ -255,14 +251,12 @@ def daily():
                 result, _ = use_tool(tool_call, {"kind": "daily"})
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
             continue
-        posts = json.loads(polza.text(message))["posts"]
-        digest = [p for p in posts if p["rubric"] == "digest"][-1:]  # always the last post of the day
-        posts = [p for p in posts if p["rubric"] != "digest"][:7 - len(digest)] + digest
+        posts = json.loads(polza.text(message))["posts"][:DAILY_COUNT]  # most relevant first
         if not posts:
             raise RuntimeError("no posts in the answer")
         day = now_msk()[:10]
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
-                   "time": t} for p, t in zip(posts, times_for(len(posts)))]
+                   "time": t, "suggested": True} for p, t in zip(posts, random_times(len(posts)))]
         path = draft_path(day)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(drafts, f, ensure_ascii=False, indent=1)
@@ -444,7 +438,7 @@ def voice_post(transcript, at=None):
         url, note = None, problem(e) or "Картинку нарисовать не получилось."
     else:
         note = None
-    at = at if at and at > now_msk() else next_free_slot(queued_times())
+    at = at if at and at > now_msk() else next_free_slot(queued_times(), now_msk())
     sent = send({"text": post, "media": url, "media_type": "photo" if url else "none",
                  "time": at[11:], "suggested": True, "image": True}, at[:10])
     remember_image(sent["message_id"], prompt)
