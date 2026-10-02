@@ -263,6 +263,15 @@ class AiTest(unittest.TestCase):
         got = ai.recent_headlines()
         self.assertEqual(got, "- <b>Четыре дня назад</b>\n- <b>Сегодня</b>")
 
+    def test_posts_are_up_to_600_characters(self):
+        self.assertEqual(ai.POST_LIMIT, 600)
+        for prompt in (ai.system_prompt(), ai.voice_system_prompt(),
+                       ai.POST_SCHEMA["properties"]["text"]["description"],
+                       ai.DAILY_SCHEMA["properties"]["posts"]["items"]["properties"]["text"]["description"],
+                       ai.VOICE_POST_SCHEMA["properties"]["post"]["description"]):
+            self.assertIn("never more than 600", prompt)
+            self.assertNotIn("1000", prompt)
+
     def test_random_times(self):
         import random
         from schedule import random_times
