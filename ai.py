@@ -10,7 +10,7 @@ Task kinds (JSON in the TASK env var):
    «Что поправить?», with "reason": "<post title>" her answer to «Почему?» (saved to feedback.md)
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
-  {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times, and the digest; saved to drafts/<today>.json
+  {"kind": "daily"}  - the day's 8 posts, most relevant first, at random times (no digest since 03.10); saved to drafts/<today>.json
   {"kind": "daily", "part": "next"}  - the same for tomorrow, drafts/<tomorrow>.json
   {"kind": "daily", "scheduled": true, "part": "next"}  - the same from the schedule (also an empty TASK,
                                          21:00 Yekaterinburg); skipped if tomorrow's drafts exist
@@ -63,17 +63,17 @@ TOOLS = [
     ),
 ]
 PAGE_LIMIT = 8000
-RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
-DAILY_COUNT = 7
+RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor"]  # no "digest" since 03.10
+DAILY_COUNT = 8  # Nina 03.10: no evening digest, one more news post instead
 # Nina approves the next day's news in the evening ("next", 21:00 Yekaterinburg), because she wakes up
 # after the first posts are due. A daily task without "part" (by hand) makes today's.
 PARTS = {
-    "next": {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": True},
-    None: {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": False},
+    "next": {"count": DAILY_COUNT, "start": "07:00", "end": "22:00", "digest": False, "tomorrow": True},
+    None: {"count": DAILY_COUNT, "start": "07:00", "end": "22:00", "digest": False, "tomorrow": False},
 }
 DAILY_SCHEMA = {
     "type": "object",
-    "properties": {"posts": {"type": "array", "description": "7 news posts for today, the most relevant first, then the evening digest.", "items": {
+    "properties": {"posts": {"type": "array", "description": "The news posts, the most relevant first.", "items": {
         "type": "object",
         "properties": {
             "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
@@ -266,7 +266,7 @@ def part_day(part):
 def daily_task(part):
     p = PARTS[part]
     digest = (', and then the evening positive digest (rubric "digest", it sums up the day\'s good news; '
-              'it comes last, in the evening)') if p["digest"] else ' (no digest this time)'
+              'it comes last, in the evening)') if p["digest"] else ''
     when = (" They are published tomorrow, so choose stories that will still be fresh and interesting then."
             if p["tomorrow"] else "")
     return DAILY_TASK.format(count=p["count"], digest=digest, when=when)
