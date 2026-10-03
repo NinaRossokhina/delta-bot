@@ -1,0 +1,37 @@
+[
+ {
+  "text": "<b>Чипы Google для ИИ улетели в космос</b>\n\nСпутник с процессорами Google TPU в четверг стартовал на Falcon 9, <a href=\"https://www.theverge.com/tech/1003838/googles-ai-satellite-successfully-launches-into-space\">сообщает The Verge</a>. Это часть проекта Suncatcher: на орбите солнечная панель <a href=\"https://research.google/blog/exploring-a-space-based-scalable-ai-infrastructure-system-design/\">даёт до 8 раз больше энергии</a>, чем на Земле.\n\nИдея в том, чтобы однажды вынести дата-центры для ИИ туда, где всегда светит солнце. Пока это эксперимент. Звучит как фантастика, но ракета уже улетела.",
+  "media": "https://storage.googleapis.com/gweb-research2023-media/images/Project_Suncatcher_hero.width-800.format-jpeg.jpg",
+  "media_type": "photo",
+  "time": "13:45",
+  "suggested": true
+ },
+ {
+  "text": "<b>Дипфейки теперь ловит свет</b>\n\nВ UCLA сделали детектор, в котором часть работы выполняет сам свет, проходя через оптические слои. Поэтому он проверяет сразу 15 видео за один проход и в среднем <a href=\"http://www.sciencedaily.com/releases/2026/09/260929053534.htm\">угадывает в 97,8% случаев</a>. Это как проверить пятнадцать паспортов одним взглядом.\n\nЗадумка в том, чтобы это был первый фильтр: подозрительное потом разберут обычные модели. На видео из Google Veo 3 после небольшой донастройки точность составила 94,8%.",
+  "media": "https://www.sciencedaily.com/images/scidaily-icon.png",
+  "media_type": "photo",
+  "time": "15:00",
+  "suggested": true
+ },
+ {
+  "text": "<b>Телефон для детей, который выгоняет на улицу</b>\n\nВ <a href=\"https://interiordigest.net/freckle-phone-aims-to-send-kids-outside-to-play-and-engage-with-the-world\">телефоне Freckle</a> для детей 7–13 лет нет соцсетей, браузера и магазина приложений. Зато есть квесты вроде «найди в парке пять разных жуков», а камера подскажет, кто это. Основатель сравнивает её с покедексом из реальной жизни.\n\nИИ здесь узкий: болтливого чат-бота нет, только помощник для вопросов, определитель находок и рассказчик историй. Данные детей для обучения моделей не используют.",
+  "media": "http://static.dezeen.com/uploads/2026/09/freckle-phone-design_dezeen_2364_sq2-411x411.jpg",
+  "media_type": "photo",
+  "time": "19:55",
+  "suggested": true
+ },
+ {
+  "text": "<b>Бесплатные овощи оказались почти лекарством</b>\n\nВ клинике в Ревире, штат Массачусетс, 68 пациентов в среднем 2,7 года получали еженедельные наборы продуктов: овощи, фрукты, фасоль, орехи, цельное зерно. По <a href=\"https://www.eurekalert.org/news-releases/1146410\">данным исследования Mass General Brigham</a>, чем больше наборов, тем лучше результат. Каждые 100 наборов связаны с падением диастолического давления на 3,2 мм рт. ст. и веса на 2,6 кг.\n\nНа сахар в крови это не повлияло. Но давление и вес меняются, если еда хорошая и приходит долго.",
+  "media": "https://mediasvc.eurekalert.org/Api/v1/Multimedia/a9a078d9-9b67-4e18-80e6-9c7ba6b578a4/Rendition/thumbnail/Content/Public",
+  "media_type": "photo",
+  "time": "21:00",
+  "suggested": true
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nСпутник с чипами Google для ИИ ушёл на орбиту. Детям придумали телефон, который отправляет на улицу искать жуков. А учёные показали, что годовой запас овощей по подписке работает почти как таблетка от давления.\n\nИ отдельная радость для науки: Тони Хантер из Института Солка получил <a href=\"https://www.salk.edu/news-release/salk-scientist-tony-hunter-receives-2026-albany-prize/\">премию Олбани</a> за открытие 1979 года. Оно привело к созданию более 100 противораковых лекарств.",
+  "media": "http://static.dezeen.com/uploads/2026/09/freckle-phone-design_dezeen_2364_sq2-411x411.jpg",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true
+ }
+]
