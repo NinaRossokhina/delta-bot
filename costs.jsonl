@@ -43,3 +43,6 @@
 {"t": "2026-10-03T11:09", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 10.05196718}
 {"t": "2026-10-03T11:09", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 11.51309734}
 {"t": "2026-10-03T11:10", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 16.48023798}
+{"t": "2026-10-03T03:35", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.19910677}
+{"t": "2026-10-03T08:41", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.18097425}
+{"t": "2026-10-03T13:39", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.2157185}
