@@ -30,33 +30,79 @@ def shift_day(day, days):
     return f"{datetime.fromisoformat(day) + timedelta(days=days):%Y-%m-%d}"
 
 
-def draft_buttons(at, image=False, mark=False, now=None):
-    """Buttons under a draft that is not scheduled yet. `at` is 'YYYY-MM-DDTHH:MM' Moscow time: its day
-    is the publish date, shown in the first row with «◀» / «▶» to change it (d:<new at>); then one button
-    per time slot of that day, the tapped one sets the publish time. A time outside SLOTS (set by
-    replying "15:30" or a random daily time) gets its own button; mark=True marks `at` as the suggested
-    time with "•". «Сейчас» shows today's date. image=True adds «Другая картинка» (posts from voice messages)."""
+def draft_buttons(at, image=False, mark=False, now=None, digest=False):
+    """Buttons under a draft that is not scheduled yet: three dates (today, tomorrow, the day after);
+    the tapped one queues the post on that day at a time the bot picks (poll.py, pick_time): random,
+    at least MIN_GAP minutes from other posts, spread over the day. `at` ('YYYY-MM-DDTHH:MM' Moscow)
+    gives the day the draft is meant for, marked with "•". digest=True: the evening digest, always
+    DIGEST_TIME (dg: instead of dt:). «Сейчас» shows today's date. image=True adds «Другая картинка»
+    (posts from voice messages). `mark` is kept for older callers."""
     now = now or now_msk()
-    day, times = at[:10], sorted(set(SLOTS) | {at[11:]})
-    date = [{"text": f"📅 {WEEKDAYS[datetime.fromisoformat(day).weekday()]}, {ddmm(day)}", "callback_data": "dl"},
-            {"text": f"{ddmm(shift_day(day, 1))} ▶", "callback_data": f"d:{shift_day(day, 1)}T{at[11:]}"}]
-    if day > now[:10]:
-        date.insert(0, {"text": f"◀ {ddmm(shift_day(day, -1))}", "callback_data": f"d:{shift_day(day, -1)}T{at[11:]}"})
-    buttons = [{"text": f"• {t}" if mark and t == at[11:] else t, "callback_data": f"at:{day}T{t}"} for t in times]
-    rows = [date] + [buttons[i:i + ROW] for i in range(0, len(buttons), ROW)]
-    rows.append([{"text": "Изменить", "callback_data": "edit"},
-                 {"text": f"Сейчас, {ddmm(now[:10])}", "callback_data": "pub"},
-                 {"text": "Отклонить", "callback_data": "rej"}])
+    today = now[:10]
+    days = [shift_day(today, i) for i in range(3)]
+    dates = [{"text": f"{'• ' if d == at[:10] else ''}{WEEKDAYS[datetime.fromisoformat(d).weekday()]}, {ddmm(d)}",
+              "callback_data": f"{'dg' if digest else 'dt'}:{d}"} for d in days]
+    rows = [dates, [{"text": "Изменить", "callback_data": "edit"},
+                    {"text": f"Сейчас, {ddmm(today)}", "callback_data": "pub"},
+                    {"text": "Отклонить", "callback_data": "rej"}]]
     if image:
         rows.append([IMAGE_BUTTON])
     return {"inline_keyboard": rows}
 
 
-def scheduled_buttons(at, image=False):
-    """A scheduled draft: «Отменить» brings back draft_buttons (ui: instead of un: keeps «Другая картинка»)."""
+def _at_minutes(at):
+    return _minutes(at[11:16])
+
+
+def pick_time(day, taken, now=None, rng=random, digest=False):
+    """A publish time 'HH:MM' for a post on `day`, or None if the day has no room: for the digest
+    DIGEST_TIME plus a few random minutes (and an hour after the day's last post); otherwise a random
+    minute in DAY_START-DAY_END, at least MIN_GAP from the posts in `taken` ('YYYY-MM-DDTHH:MM'),
+    in the widest free stretch, so posts tapped one by one spread evenly over the day."""
+    now = now or now_msk()
+    points = sorted(_at_minutes(t) for t in taken if t[:10] == day)
+    start, end = _minutes(DAY_START), _minutes(DAY_END)
+    if day == now[:10]:
+        start = max(start, _minutes(now[11:16]) + 15)
+    if digest:
+        t = max([_minutes(DIGEST_TIME)] + [p + MIN_GAP for p in points if p < _minutes(DIGEST_TIME) + MIN_GAP])
+        t += rng.randint(0, 14)
+        if day == now[:10]:
+            t = max(t, start)
+        clash = [p for p in points if abs(p - t) < MIN_GAP]
+        return _hhmm(t) if t <= 23 * 60 + 55 and not clash else None
+    if start > end:
+        return None
+    if not points:
+        return _hhmm(rng.randint(start, end))
+    options = []  # (how far from the nearest post, lowest, highest, best time)
+    lo, hi = start, points[0] - MIN_GAP
+    if lo <= hi:
+        options.append((points[0] - lo, lo, hi, lo))
+    for a, b in zip(points, points[1:]):
+        lo, hi = max(a + MIN_GAP, start), min(b - MIN_GAP, end)
+        if lo <= hi:
+            options.append(((b - a) / 2, lo, hi, (a + b) // 2))
+    lo, hi = max(points[-1] + MIN_GAP, start), end
+    if lo <= hi:
+        options.append((hi - points[-1], lo, hi, hi))
+    if not options:
+        return None
+    _, lo, hi, best = max(options)
+    if best == lo:  # the start of the day: a little after it, not exactly 07:00
+        return _hhmm(lo + rng.randint(0, min(30, hi - lo)))
+    if best == hi:
+        return _hhmm(hi - rng.randint(0, min(30, hi - lo)))
+    jitter = min(25, (hi - lo) // 2)
+    return _hhmm(min(max(best + rng.randint(-jitter, jitter), lo), hi))
+
+
+def scheduled_buttons(at, image=False, digest=False):
+    """A scheduled draft: «Отменить» brings back draft_buttons (ui: keeps «Другая картинка», ug: the digest)."""
+    cancel = "ui" if image else "ug" if digest else "un"
     return {"inline_keyboard": [[
         {"text": f"⏰ {ddmm(at[:10])} в {at[11:]}", "callback_data": "done"},
-        {"text": "Отменить", "callback_data": f"{'ui' if image else 'un'}:{at}"},
+        {"text": "Отменить", "callback_data": f"{cancel}:{at}"},
     ]]}
 
 

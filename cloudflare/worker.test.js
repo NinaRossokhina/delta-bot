@@ -114,19 +114,16 @@ test("hot news dispatch error is reported without the token", async () => {
   assert.match(out, /^hot news: error 404/);
 });
 
-test("daily drafts start at 21:00 and 09:00 Moscow only", async () => {
+test("daily drafts start at 21:00 Yekaterinburg only", async () => {
   const { dailyTick } = await import("./worker.js");
   let calls = stub();
-  assert.equal(await dailyTick(env, Date.parse("2026-10-02T18:00:20Z")), "drafts (morning): started");
+  assert.equal(await dailyTick(env, Date.parse("2026-10-02T16:00:20Z")), "drafts (next): started");
   const d = calls.find(c => c.url.endsWith("/actions/workflows/ai.yml/dispatches"));
   assert.equal(d.method, "POST");
   const body = JSON.parse(d.body);
   assert.equal(body.ref, "main");
-  assert.deepEqual(JSON.parse(body.inputs.task), { kind: "daily", part: "morning", scheduled: true });
-  calls = stub();
-  assert.equal(await dailyTick(env, Date.parse("2026-10-03T06:00:00Z")), "drafts (day): started");
-  assert.equal(JSON.parse(JSON.parse(calls[0].body).inputs.task).part, "day");
-  for (const t of ["2026-10-03T06:01:00Z", "2026-10-03T07:00:00Z", "2026-10-02T18:30:00Z"]) {
+  assert.deepEqual(JSON.parse(body.inputs.task), { kind: "daily", part: "next", scheduled: true });
+  for (const t of ["2026-10-03T16:01:00Z", "2026-10-03T06:00:00Z", "2026-10-02T18:00:00Z"]) {
     calls = stub();
     assert.equal(await dailyTick(env, Date.parse(t)), null);
     assert.equal(calls.length, 0);

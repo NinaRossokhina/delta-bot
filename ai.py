@@ -11,10 +11,9 @@ Task kinds (JSON in the TASK env var):
   {"kind": "image", "msg": 123, "html": "...", "media_type": "photo", "buttons": {...}}  - «Другая картинка»:
    draw a new image for a post from a voice message and put it in place of the old one
   {"kind": "daily"}  - the day's 7 posts, most relevant first, at random times, and the digest; saved to drafts/<today>.json
-  {"kind": "daily", "part": "morning"}  - tomorrow's first 3 posts (07:00-11:00), drafts/<tomorrow>-am.json
-  {"kind": "daily", "part": "day"}  - today's other 4 posts (12:00-21:00) and the digest (22:00)
-  {"kind": "daily", "scheduled": true, "part": ...}  - the same from the schedule (empty TASK: the 21:00
-                                         run makes "morning", the 09:00 run "day"); skipped if that part exists
+  {"kind": "daily", "part": "next"}  - the same for tomorrow, drafts/<tomorrow>.json
+  {"kind": "daily", "scheduled": true, "part": "next"}  - the same from the schedule (also an empty TASK,
+                                         21:00 Yekaterinburg); skipped if tomorrow's drafts exist
 New or rewritten posts are sent to Nina as drafts with the usual buttons. Daily posts are
 committed by the workflow, which then runs send.yml for the new file.
 """
@@ -66,15 +65,12 @@ TOOLS = [
 PAGE_LIMIT = 8000
 RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
 DAILY_COUNT = 7
-# The day's news comes in two parts, because Nina wakes up after the first posts are due:
-# "morning" is sent the evening before (21:00) for 07:00-11:00, "day" in the morning (09:00) for
-# 12:00-21:00 plus the evening digest at 22:00. A daily task without "part" (by hand) makes the whole day.
+# Nina approves the next day's news in the evening ("next", 21:00 Yekaterinburg), because she wakes up
+# after the first posts are due. A daily task without "part" (by hand) makes today's.
 PARTS = {
-    "morning": {"count": 3, "start": "07:00", "end": "11:00", "digest": False, "tomorrow": True},
-    "day": {"count": DAILY_COUNT - 3, "start": "12:00", "end": "21:00", "digest": True, "tomorrow": False},
+    "next": {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": True},
     None: {"count": DAILY_COUNT, "start": "07:00", "end": "21:00", "digest": True, "tomorrow": False},
 }
-EVENING_CRON = "0 18 * * *"  # ai.yml's 21:00 Moscow schedule: the morning part for tomorrow
 DAILY_SCHEMA = {
     "type": "object",
     "properties": {"posts": {"type": "array", "description": "7 news posts for today, the most relevant first, then the evening digest.", "items": {
@@ -259,8 +255,8 @@ def draft_path(day, name=""):
 
 
 def part_day(part):
-    """The day a daily part is for: the next morning for the morning part (sent the evening before;
-    today if the run comes late, after midnight and before the first post), else today."""
+    """The day a daily part is for: tomorrow for the evening part (today if the run comes late,
+    after midnight and before the first post), else today."""
     now = now_msk()
     today = date.fromisoformat(now[:10])
     tomorrow = PARTS[part]["tomorrow"] and now[11:] >= PARTS[part]["start"]
@@ -271,14 +267,13 @@ def daily_task(part):
     p = PARTS[part]
     digest = (', and then the evening positive digest (rubric "digest", it sums up the day\'s good news; '
               'it comes last, in the evening)') if p["digest"] else ' (no digest this time)'
-    when = (" They are published tomorrow morning, so choose stories that will still be fresh and interesting then."
+    when = (" They are published tomorrow, so choose stories that will still be fresh and interesting then."
             if p["tomorrow"] else "")
     return DAILY_TASK.format(count=p["count"], digest=digest, when=when)
 
 
 def daily(part=None):
-    """Find the posts of a daily part (see PARTS), save them to drafts/<day>.json (the morning part:
-    drafts/<tomorrow>-am.json) and return the path."""
+    """Find the posts of a daily part (see PARTS), save them to drafts/<day>.json and return the path."""
     p = PARTS[part]
     tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": system_prompt()},
@@ -301,12 +296,12 @@ def daily(part=None):
         if not news + digest:
             raise RuntimeError("no posts in the answer")
         day = part_day(part)
-        now = f"{day}T00:00" if p["tomorrow"] else now_msk()
+        now = max(f"{day}T00:00", now_msk())
         times = random_times(len(news), now, start=p["start"], end=p["end"]) if news else []
         times = times + [digest_time(times[-1] if times else None)] * len(digest)  # the digest always last
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
-                   "time": t, "suggested": True} for p, t in zip(news + digest, times)]
-        path = draft_path(day, "-am" if part == "morning" else "")
+                   "time": t, "suggested": True, "digest": p["rubric"] == "digest"} for p, t in zip(news + digest, times)]
+        path = draft_path(day, "")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(drafts, f, ensure_ascii=False, indent=1)
             f.write("\n")
@@ -318,10 +313,8 @@ FAILED_TODAY = "Сегодня черновики не собрались: {}"
 
 
 def drafts_exist(day, part=None):
-    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.;
-    for the morning part drafts/<day>-am.json etc.)."""
-    name = "-am" if part == "morning" else ""
-    return any(re.fullmatch(rf"{day}{name}(-\d+)?\.json", f) for f in os.listdir("drafts")) if os.path.isdir("drafts") else False
+    """Daily drafts for this day are already saved (drafts/<day>.json or drafts/<day>-2.json etc.)."""
+    return any(re.fullmatch(rf"{day}(-\d+)?\.json", f) for f in os.listdir("drafts")) if os.path.isdir("drafts") else False
 
 
 TIMEOUT = "Polza AI не ответила вовремя. Попробуй ещё раз чуть позже."
@@ -561,7 +554,7 @@ def stop_deadline():
 
 def main():
     task = json.loads(os.environ.get("TASK") or "null") or {
-        "kind": "daily", "scheduled": True, "part": "morning" if os.environ.get("SCHEDULE") == EVENING_CRON else "day"}
+        "kind": "daily", "scheduled": True, "part": "next"}
     costs.task = task["kind"]
     start_deadline()
     try:
@@ -573,6 +566,9 @@ def main():
 def _main(task):
     if task["kind"] == "daily":
         part = task.get("part")
+        if part not in PARTS:  # "morning"/"day" from a worker not yet redeployed: the evening run covers them
+            print(f"no daily part {part!r}, nothing to do")
+            return
         day = part_day(part)
         if task.get("scheduled") and drafts_exist(day, part):
             print(f"drafts for {day} ({part}) already exist, nothing to do")
@@ -598,7 +594,8 @@ def _main(task):
         notify("sendMessage", chat_id=ADMIN, text=text)
         if edit:  # give the old draft its buttons back
             notify("editMessageReplyMarkup", chat_id=ADMIN, message_id=edit["msg"],
-                   reply_markup=draft_buttons(edit.get("at") or f"{edit['day']}T09:00", image=bool(edit.get("image"))))
+                   reply_markup=draft_buttons(edit.get("at") or f"{edit['day']}T09:00", image=bool(edit.get("image")),
+                                                mark=True, now=now_msk(), digest=bool(edit.get("digest"))))
         if task["kind"] == "image" and task.get("buttons"):
             notify("editMessageReplyMarkup", chat_id=ADMIN, message_id=task["msg"], reply_markup=task["buttons"])
         if isinstance(e, NotHeard):

@@ -89,9 +89,9 @@ export async function hotTick(env, ms = Date.now()) {
 }
 
 // The day's drafts (ai.yml) on time: GitHub's own schedule for them was hours late or skipped.
-// UTC hour -> part: 18:00 UTC = 21:00 Moscow, tomorrow morning's posts; 06:00 UTC = 09:00 Moscow, the rest.
-// "scheduled" makes ai.py skip a part that is already there, so GitHub's late run adds nothing twice.
-export const DAILY = { 18: "morning", 6: "day" };
+// UTC hour -> part: 16:00 UTC = 21:00 Yekaterinburg (19:00 Moscow), tomorrow's posts.
+// "scheduled" makes ai.py skip drafts that are already there, so GitHub's late run adds nothing twice.
+export const DAILY = { 16: "next" };
 
 export async function dailyTick(env, ms = Date.now()) {
   const at = new Date(ms), part = DAILY[at.getUTCHours()];

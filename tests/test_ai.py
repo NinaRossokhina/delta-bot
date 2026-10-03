@@ -130,7 +130,7 @@ class AiTest(unittest.TestCase):
             ai.main()
         self.assertNotIn("test-key", str(e.exception))
         self.assertEqual([m for m, _ in self.calls], ["sendMessage", "editMessageReplyMarkup"])
-        self.assertIn("at:2026-10-03T09:00", str(self.calls[1][1]["reply_markup"]))
+        self.assertIn("dt:2026-10-03", str(self.calls[1][1]["reply_markup"]))
 
     def test_fetch_page_parses_html(self):
         page = ('<html><head><title>Новость &amp; факт</title><meta content="https://x.ru/i.jpg" property="og:image">'
@@ -170,7 +170,8 @@ class AiTest(unittest.TestCase):
         self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(8)])  # 7: the digest
         self.assertEqual(drafts[0], {"text": "<b>Пост 0</b>\n\nТекст <a href='https://src/0'>источник</a>",
                                      "media": "https://img/0.jpg", "media_type": "photo", "time": "09:20",
-                                     "suggested": True})
+                                     "suggested": True, "digest": False})
+        self.assertTrue(drafts[-1]["digest"])
         first = self.bodies()[0]
         self.assertEqual(first["response_format"]["type"], "json_schema")
         self.assertTrue(first["response_format"]["json_schema"]["strict"])
@@ -201,44 +202,34 @@ class AiTest(unittest.TestCase):
         self.assertEqual(drafts[-1]["time"], "22:00")
         self.assertEqual([d["time"] for d in drafts], sorted(d["time"] for d in drafts))
 
-    def test_morning_part_is_for_tomorrow(self):
+    def test_evening_run_is_for_tomorrow(self):
         os.mkdir("drafts")
         self.replies = [completion(json.dumps(self.daily_posts()))]
-        os.environ.update(TASK="", SCHEDULE=ai.EVENING_CRON)  # the 21:00 run
-        self.addCleanup(os.environ.pop, "SCHEDULE")
+        os.environ["TASK"] = ""  # the schedule passes no task: 21:00 Yekaterinburg
         ai.main()
-        drafts = json.load(open("drafts/2026-10-03-am.json"))
-        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(3)])  # no digest
-        times = [d["time"] for d in drafts]
-        self.assertTrue("07:00" <= times[0] and times[-1] <= "11:00" and times == sorted(times), times)
-        task = self.bodies()[0]["messages"][1]["content"]
-        self.assertIn("exactly 3", task)
-        self.assertIn("tomorrow morning", task)
-        self.assertIn("no digest", task)
-        ai.main()  # the morning part for tomorrow is there: nothing to do
-        self.assertEqual(len(self.requests), 1)
-        self.assertFalse(ai.drafts_exist("2026-10-03"))  # the day part is still to come
-
-    def test_late_evening_run_after_midnight_is_for_this_morning(self):
-        with mock.patch("ai.now_msk", lambda: "2026-10-03T01:01"):  # GitHub started the 21:00 run four hours late
-            self.assertEqual(ai.part_day("morning"), "2026-10-03")
-        with mock.patch("ai.now_msk", lambda: "2026-10-02T21:05"):
-            self.assertEqual(ai.part_day("morning"), "2026-10-03")
-            self.assertEqual(ai.part_day("day"), "2026-10-02")
-
-    def test_day_part_after_the_morning_one(self):
-        os.mkdir("drafts")
-        open("drafts/2026-10-02-am.json", "w").write("[]")  # sent last evening
-        self.replies = [completion(json.dumps(self.daily_posts()))]
-        os.environ["TASK"] = ""  # the 09:00 run
-        ai.main()
-        drafts = json.load(open("drafts/2026-10-02.json"))
-        self.assertEqual(len(drafts), 5)  # 4 news and the digest
-        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))
-        self.assertEqual(drafts[-1]["time"], "22:00")
+        drafts = json.load(open("drafts/2026-10-03.json"))
+        self.assertEqual(len(drafts), 8)  # 7 news and the digest
+        self.assertTrue(drafts[-1]["digest"])
         times = [d["time"] for d in drafts[:-1]]
-        self.assertTrue("12:00" <= times[0] and times[-1] <= "21:00" and times == sorted(times), times)
-        self.assertIn("exactly 4", self.bodies()[0]["messages"][1]["content"])
+        self.assertTrue("07:00" <= times[0] and times[-1] <= "21:00" and times == sorted(times), times)
+        task = self.bodies()[0]["messages"][1]["content"]
+        self.assertIn("exactly 7", task)
+        self.assertIn("tomorrow", task)
+        ai.main()  # tomorrow's drafts are there: nothing to do
+        self.assertEqual(len(self.requests), 1)
+
+    def test_late_evening_run_after_midnight_is_for_today(self):
+        with mock.patch("ai.now_msk", lambda: "2026-10-03T01:01"):  # GitHub started the run hours late
+            self.assertEqual(ai.part_day("next"), "2026-10-03")
+        with mock.patch("ai.now_msk", lambda: "2026-10-02T19:05"):
+            self.assertEqual(ai.part_day("next"), "2026-10-03")
+            self.assertEqual(ai.part_day(None), "2026-10-02")
+
+    def test_old_parts_from_the_worker_do_nothing(self):
+        for part in ("morning", "day"):
+            os.environ["TASK"] = json.dumps({"kind": "daily", "part": part, "scheduled": True})
+            ai.main()
+        self.assertEqual(self.requests, [])
 
     def test_daily_error_tells_nina(self):
         self.replies = [completion("не JSON")]
@@ -253,10 +244,10 @@ class AiTest(unittest.TestCase):
         self.replies = [completion(json.dumps(self.daily_posts()))]
         os.environ["TASK"] = ""  # the schedule passes no task
         ai.main()
-        self.assertTrue(os.path.exists("drafts/2026-10-02.json"))
-        ai.main()  # second morning run: today's drafts are there
+        self.assertTrue(os.path.exists("drafts/2026-10-03.json"))
+        ai.main()  # second evening run: tomorrow's drafts are there
         self.assertEqual(len(self.requests), 1)
-        self.assertFalse(os.path.exists("drafts/2026-10-02-2.json"))
+        self.assertFalse(os.path.exists("drafts/2026-10-03-2.json"))
 
     def test_scheduled_polza_error_reason(self):
         def handler(request):
@@ -436,7 +427,7 @@ class AiTest(unittest.TestCase):
         self.replies = [{"text": ""}]
         self.voice_task(edit={"kind": "edit", "msg": 7, "html": "x", "day": "2026-10-03"})
         self.assertEqual(self.texts(), [ai.NOT_HEARD])
-        self.assertIn("at:2026-10-03T09:00", str(self.calls[-1]))
+        self.assertIn("dt:2026-10-03", str(self.calls[-1]))
 
     def test_no_money_and_timeout_messages(self):
         import openai
@@ -550,7 +541,7 @@ class AiTest(unittest.TestCase):
         with mock.patch("ai.run", side_effect=ai.Deadline()), self.assertRaises(ai.Deadline):
             ai.main()
         self.assertIn("Не уложилась", self.texts()[0])
-        self.assertIn("at:2026-10-02T15:00", str(self.calls[-1]))  # buttons back, at the post's own time
+        self.assertIn("'• пт, 02.10', 'callback_data': 'dt:2026-10-02'", str(self.calls[-1]))  # buttons back, the post's own day
 
     def test_polza_down_and_busy_messages(self):
         for status, text in [(503, ai.POLZA_DOWN), (429, ai.POLZA_BUSY)]:

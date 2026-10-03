@@ -23,12 +23,11 @@ from tg import call
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
 CAPTION_LIMIT = 1024
-HELP = ("Черновики на {day}, постов: {n}, самые актуальные первыми, дайджест последним. Нажми под постом время, и пост сам выйдет в это время: "
-        "Над временем дата публикации, её можно поменять кнопками ◀ ▶. «•» отмечает предложенное время "
-        "(случайное, актуальные раньше), можно выбрать любой час с 07:00 до 22:00. Прошедшее время бот не примет. "
-        "Между постами не меньше часа: время рядом с уже выбранным бот не примет. "
-        "Чтобы поменять время, ответь на черновик сообщением вида 15:30. "
-        "Чтобы исправить пост, нажми «Изменить» и напиши, что поправить.")
+HELP = ("Черновики на {day}, постов: {n}, самые актуальные первыми, дайджест последним. "
+        "Нажми под постом дату, и бот сам поставит его на случайное время в этот день (например, 13:19): "
+        "посты выходят с 07:00 до 22:00, равномерно, между ними не меньше часа, дайджест вечером. "
+        "«Сейчас» публикует сразу. Чтобы выбрать точное время, ответь на черновик сообщением вида 15:30 "
+        "или 05.10 15:30. Чтобы исправить пост, нажми «Изменить» и напиши, что поправить.")
 
 
 def send(draft, day=None):
@@ -38,7 +37,7 @@ def send(draft, day=None):
         media = None
     day = day or now_msk()[:10]
     buttons = draft_buttons(f"{day}T{draft.get('time', SLOTS[0])}", image=bool(draft.get("image")),
-                            mark=bool(draft.get("suggested")))
+                            mark=bool(draft.get("suggested")), digest=bool(draft.get("digest")))
     if media and kind != "link" and len(text) <= CAPTION_LIMIT:
         method = "sendVideo" if kind == "video" else "sendPhoto"
         return call(method, chat_id=ADMIN, **{kind: media}, caption=text,
@@ -63,5 +62,34 @@ def main(path):
             send({**d, "media": None}, day)
 
 
+def is_draft(message):
+    """A draft starts with its bold title."""
+    entities = message.get("entities") or message.get("caption_entities") or []
+    return any(e["type"] == "bold" and e["offset"] == 0 for e in entities)
+
+
+def resend(first, last, day):
+    """Send again the drafts among the bot's messages first..last with today's buttons for `day`
+    (the old copies are deleted). The last of them is taken for the digest."""
+    found = []
+    for mid in range(first, last + 1):
+        try:  # only a message of the bot with buttons can lose them; anything else is refused
+            message = call("editMessageReplyMarkup", chat_id=ADMIN, message_id=mid, reply_markup={"inline_keyboard": []})
+        except RuntimeError:
+            continue
+        if isinstance(message, dict) and is_draft(message):
+            found.append(mid)
+    call("sendMessage", chat_id=ADMIN, text=HELP.format(day=f"{day[8:]}.{day[5:7]}", n=len(found)))
+    for i, mid in enumerate(found, 1):
+        buttons = draft_buttons(f"{day}T{SLOTS[0]}", mark=True, digest=i == len(found))
+        call("copyMessage", chat_id=ADMIN, from_chat_id=ADMIN, message_id=mid, reply_markup=buttons)
+        try:
+            call("deleteMessage", chat_id=ADMIN, message_id=mid)
+        except RuntimeError as e:
+            print(f"old draft {mid} stays: {e}")
+    print(f"resent {len(found)} drafts")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1])
+    m = re.fullmatch(r"resend:(\d+)-(\d+):(\d{4}-\d{2}-\d{2})", sys.argv[1])  # send.yml's file input
+    resend(int(m[1]), int(m[2]), m[3]) if m else main(sys.argv[1])
