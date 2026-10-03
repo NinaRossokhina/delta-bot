@@ -10,7 +10,7 @@ const MIN = 60 * 1000;
 function stub({ updates = [], queue = [], runs = [], tgOk = true, dispatchStatus = 204 } = {}) {
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url, method: init.method || "GET", headers: init.headers || {} });
+    calls.push({ url, method: init.method || "GET", headers: init.headers || {}, body: init.body });
     const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
     if (url.startsWith("https://api.telegram.org/"))
       return tgOk ? json({ ok: true, result: updates }) : json({ ok: false, description: "Unauthorized" }, 401);
@@ -112,4 +112,20 @@ test("hot news dispatch error is reported without the token", async () => {
   stub({ dispatchStatus: 404 });
   const out = await hotTick(env, Date.parse("2026-10-02T17:15:00Z"));
   assert.match(out, /^hot news: error 404/);
+});
+
+test("daily drafts start at 21:00 Yekaterinburg only", async () => {
+  const { dailyTick } = await import("./worker.js");
+  let calls = stub();
+  assert.equal(await dailyTick(env, Date.parse("2026-10-02T16:00:20Z")), "drafts (next): started");
+  const d = calls.find(c => c.url.endsWith("/actions/workflows/ai.yml/dispatches"));
+  assert.equal(d.method, "POST");
+  const body = JSON.parse(d.body);
+  assert.equal(body.ref, "main");
+  assert.deepEqual(JSON.parse(body.inputs.task), { kind: "daily", part: "next", scheduled: true });
+  for (const t of ["2026-10-03T16:01:00Z", "2026-10-03T06:00:00Z", "2026-10-02T18:00:00Z"]) {
+    calls = stub();
+    assert.equal(await dailyTick(env, Date.parse(t)), null);
+    assert.equal(calls.length, 0);
+  }
 });

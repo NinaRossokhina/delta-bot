@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 import costs
 from drafthtml import to_html
-from schedule import ddmm, draft_buttons, next_free_slot, now_msk, scheduled_buttons, too_close
+from schedule import ddmm, draft_buttons, next_free_slot, now_msk, pick_time, scheduled_buttons, too_close
 from tg import FILE_LIMIT, TOO_BIG, Unavailable, call
 
 ADMIN = int(os.environ["ADMIN_CHAT_ID"])
@@ -118,7 +118,7 @@ def reply_day(word, draft):
     """The day of a time reply: the draft's own day, tomorrow for «завтра», or DD.MM this year; None if invalid."""
     today = now_msk()[:10]
     if not word:
-        return next((b[3:13] for b in Bot.buttons_of(draft) if b.startswith(("at:", "un:", "ui:"))), today)
+        return Bot.draft_day(draft) or today
     if word.lower() == "завтра":
         return f"{datetime.fromisoformat(today) + timedelta(days=1):%Y-%m-%d}"
     d, mo = word.split(".")
@@ -260,6 +260,14 @@ class Bot:
         return (datetime.fromisoformat(now_msk()) - asked).total_seconds() < 30 * 60
 
     @staticmethod
+    def date_hint(draft):
+        day = next(b[3:13] for b in Bot.buttons_of(draft) if b.startswith("at:"))
+        marked = next((t[2:] for t in Bot.button_texts(draft) if t.startswith("• ")), None)
+        example = f"«• {marked}»" if marked else "«12:00»"
+        return (f"Это только дата: {ddmm(day)}. Пост ещё не стоит в очереди. Нажми время ниже, например {example}, "
+                f"и пост выйдет {ddmm(day)} в это время. Другой день: ◀ ▶.")
+
+    @staticmethod
     def button_texts(message):
         return [b["text"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
 
@@ -268,14 +276,29 @@ class Bot:
         return [b["callback_data"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
 
     def is_open_draft(self, message):
-        return any(b in ("pub", "edit") or b.startswith(("at:", "un:", "ui:")) for b in self.buttons_of(message))
+        return any(b in ("pub", "edit") or b.startswith(("at:", "un:", "ui:", "ug:", "dt:", "dg:")) for b in self.buttons_of(message))
+
+    @staticmethod
+    def draft_day(draft):
+        """The draft's day: the scheduled one, else the marked date («• вс, 04.10»), else the first time button's."""
+        rows = draft.get("reply_markup", {}).get("inline_keyboard", [])
+        buttons = [b for row in rows for b in row]
+        for b in buttons:
+            if b["callback_data"].startswith(("un:", "ui:", "ug:")) or (
+                    b["text"].startswith("• ") and b["callback_data"].startswith(("dt:", "dg:", "at:"))):
+                return b["callback_data"][3:13]
+        return next((b["callback_data"][3:13] for b in buttons if b["callback_data"].startswith("at:")), None)
+
+    @staticmethod
+    def is_digest(message):
+        return any(b.startswith(("dg:", "ug:")) for b in Bot.buttons_of(message))
 
     @staticmethod
     def draft_time(draft):
         """The draft's time: the scheduled one, else the suggested one («• 15:00»), else None."""
         rows = draft.get("reply_markup", {}).get("inline_keyboard", [])
         for b in (b for row in rows for b in row):
-            if b["callback_data"].startswith(("un:", "ui:")) or (b["text"].startswith("• ") and b["callback_data"].startswith("at:")):
+            if b["callback_data"].startswith(("un:", "ui:", "ug:")) or (b["text"].startswith("• ") and b["callback_data"].startswith("at:")):
                 return b["callback_data"][3:]
         return None
 
@@ -295,12 +318,10 @@ class Bot:
             if self.busy(mid, at):
                 say(self.busy(mid, at), reply_parameters={"message_id": mid})
                 return
-            if any(i["msg"] == mid for i in self.queue):
-                self.unqueue(mid)
-                self.enqueue(draft, at)
-                set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
-            else:
-                set_buttons(mid, draft_buttons(at, self.has_image_button(draft)))
+            self.release_slot(draft)
+            self.unqueue(mid)
+            self.enqueue(draft, at)
+            set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft), self.is_digest(draft)))
             react(msg)
         elif AI_ENABLED:
             self.start_edit(self.draft_info(draft), text, msg)
@@ -311,12 +332,13 @@ class Bot:
     @staticmethod
     def draft_info(draft):
         html, media, media_type = to_html(draft)
-        at = next((b[3:] for b in Bot.buttons_of(draft) if b.startswith("at:")), None)
         when = Bot.draft_time(draft)
         info = {"kind": "edit", "msg": draft["message_id"], "html": html,
-                "media": media, "media_type": media_type, "day": (at or now_msk())[:10]}
+                "media": media, "media_type": media_type, "day": Bot.draft_day(draft) or now_msk()[:10]}
         if when:
             info["at"] = when
+        if Bot.is_digest(draft):
+            info["digest"] = True
         return {**info, "image": True} if Bot.has_image_button(draft) else info
 
     def start_edit(self, about, instructions, msg):
@@ -364,6 +386,21 @@ class Bot:
         if data.startswith("at:") and self.busy(mid, data[3:]):  # the draft keeps its buttons
             quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.busy(mid, data[3:]), show_alert=True)
             return
+        if data in ("dl", "done") and any(b.startswith("at:") for b in self.buttons_of(draft)):
+            # «📅 сб, 03.10» is only the date (older drafts have "done" there): say how to schedule
+            quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.date_hint(draft), show_alert=True)
+            return
+        if data.startswith(("dt:", "dg:")):  # a date: the bot picks the time on that day
+            day = data[3:]
+            t = None if day < now_msk()[:10] else pick_time(
+                day, {i["at"] for i in self.queue if i["msg"] != mid}, now_msk(), digest=data.startswith("dg:"))
+            if not t:
+                text = ("Этот день уже прошёл." if day < now_msk()[:10] else
+                        f"На {ddmm(day)} свободного времени не осталось: посты выходят с 07:00 до 22:00, "
+                        f"между ними хотя бы час. Выбери другой день или ответь на черновик временем, например 23:10.")
+                quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=text, show_alert=True)
+                return
+            data = f"at:{day}T{t}"
         if data in ("pub", "rej") or data.startswith("at:"):
             self.release_slot(draft)
         if data == "pub":
@@ -379,8 +416,8 @@ class Bot:
             at = data[3:]
             self.unqueue(mid)
             self.enqueue(draft, at)
-            set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft)))
-            note = f"Выйдет в {at[11:]}"
+            set_buttons(mid, scheduled_buttons(at, self.has_image_button(draft), self.is_digest(draft)))
+            note = f"Выйдет {ddmm(at[:10])} в {at[11:]}"
         elif data.startswith("d:"):  # another day: the same buttons for it
             if data[2:12] < now_msk()[:10]:
                 note = "Этот день уже прошёл"
@@ -388,9 +425,9 @@ class Bot:
                 marked = any(t.startswith("• ") for t in self.button_texts(draft))
                 set_buttons(mid, draft_buttons(data[2:], image=self.has_image_button(draft), mark=marked))
                 note = f"Дата: {ddmm(data[2:12])}"
-        elif data.startswith(("un:", "ui:")):
+        elif data.startswith(("un:", "ui:", "ug:")):
             self.unqueue(mid)
-            set_buttons(mid, draft_buttons(data[3:], image=data.startswith("ui:")))
+            set_buttons(mid, draft_buttons(data[3:], image=data.startswith("ui:"), digest=data.startswith("ug:")))
         elif data == "img":
             if not AI_ENABLED:
                 note = "Картинки рисую через Polza AI, а ключ не подключён"

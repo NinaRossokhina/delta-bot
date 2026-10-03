@@ -88,11 +88,32 @@ export async function hotTick(env, ms = Date.now()) {
   }
 }
 
+// The day's drafts (ai.yml) on time: GitHub's own schedule for them was hours late or skipped.
+// UTC hour -> part: 16:00 UTC = 21:00 Yekaterinburg (19:00 Moscow), tomorrow's posts.
+// "scheduled" makes ai.py skip drafts that are already there, so GitHub's late run adds nothing twice.
+export const DAILY = { 16: "next" };
+
+export async function dailyTick(env, ms = Date.now()) {
+  const at = new Date(ms), part = DAILY[at.getUTCHours()];
+  if (!env.GITHUB_TOKEN || !part || at.getUTCMinutes() !== 0) return null;
+  try {
+    const task = JSON.stringify({ kind: "daily", part, scheduled: true });
+    const r = await github(env, "/actions/workflows/ai.yml/dispatches", {
+      method: "POST", body: JSON.stringify({ ref: "main", inputs: { task } }),
+    });
+    return r.ok ? `drafts (${part}): started` : redact(`drafts (${part}): error ${r.status} ${await r.text()}`, env);
+  } catch (e) {
+    return redact(`drafts (${part}): error ${e.message}`, env);
+  }
+}
+
 export default {
   async scheduled(event, env, ctx) {
     console.log(await tick(env));
     const hot = await hotTick(env, event.scheduledTime);
     if (hot) console.log(hot);
+    const daily = await dailyTick(env, event.scheduledTime);
+    if (daily) console.log(daily);
   },
   // Opening the worker's URL runs one check and shows the result (handy for testing).
   async fetch(request, env) {
