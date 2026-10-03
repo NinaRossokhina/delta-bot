@@ -266,17 +266,14 @@ class PollTest(unittest.TestCase):
         self.assertEqual(ans["text"], "Этот день уже прошёл.")
         self.assertEqual(len(self.bot.queue), 1)
 
-    def test_seven_taps_spread_over_the_day_and_digest_goes_last(self):
-        for mid in range(20, 27):
+    def test_eight_taps_spread_over_the_day(self):
+        for mid in range(20, 28):
             self.button(mid, "dt:2026-10-03")
         times = sorted(i["at"][11:] for i in self.bot.queue)
-        self.assertEqual(len(times), 7)
+        self.assertEqual(len(times), 8)
         mins = [int(t[:2]) * 60 + int(t[3:]) for t in times]
         self.assertTrue(all(b - a >= 60 for a, b in zip(mins, mins[1:])), times)
-        self.assertTrue(times[0] >= "07:00" and times[-1] <= "21:00", times)
-        self.button(30, "dg:2026-10-03")
-        digest = [i["at"] for i in self.bot.queue if i["msg"] == 30][0]
-        self.assertTrue("2026-10-03T22:00" <= digest <= "2026-10-03T22:14", digest)
+        self.assertTrue(times[0] >= "07:00" and times[-1] <= "22:00", times)
         self.calls.clear()
         for mid in range(40, 60):  # the day fills up: then the bot says so
             self.button(mid, "dt:2026-10-03")

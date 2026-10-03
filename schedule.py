@@ -11,7 +11,7 @@ def now_msk():
 
 SLOTS = [f"{h:02d}:00" for h in range(7, 23)]  # time buttons under a draft: every hour 07:00-22:00
 ROW = 4  # time buttons per row
-DAY_START, DAY_END, MIN_GAP = "07:00", "21:00", 60  # window of the daily news' random times; posts at least MIN_GAP minutes apart
+DAY_START, DAY_END, MIN_GAP = "07:00", "22:00", 60  # window of the daily news' random times; posts at least MIN_GAP minutes apart
 DIGEST_TIME = "22:00"  # the evening digest, after the news
 
 
