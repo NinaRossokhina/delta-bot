@@ -260,6 +260,14 @@ class Bot:
         return (datetime.fromisoformat(now_msk()) - asked).total_seconds() < 30 * 60
 
     @staticmethod
+    def date_hint(draft):
+        day = next(b[3:13] for b in Bot.buttons_of(draft) if b.startswith("at:"))
+        marked = next((t[2:] for t in Bot.button_texts(draft) if t.startswith("• ")), None)
+        example = f"«• {marked}»" if marked else "«12:00»"
+        return (f"Это только дата: {ddmm(day)}. Пост ещё не стоит в очереди. Нажми время ниже, например {example}, "
+                f"и пост выйдет {ddmm(day)} в это время. Другой день: ◀ ▶.")
+
+    @staticmethod
     def button_texts(message):
         return [b["text"] for row in message.get("reply_markup", {}).get("inline_keyboard", []) for b in row]
 
@@ -363,6 +371,10 @@ class Bot:
         mid = draft["message_id"]
         if data.startswith("at:") and self.busy(mid, data[3:]):  # the draft keeps its buttons
             quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.busy(mid, data[3:]), show_alert=True)
+            return
+        if data in ("dl", "done") and any(b.startswith("at:") for b in self.buttons_of(draft)):
+            # «📅 сб, 03.10» is only the date (older drafts have "done" there): say how to schedule
+            quiet(call, "answerCallbackQuery", callback_query_id=q["id"], text=self.date_hint(draft), show_alert=True)
             return
         if data in ("pub", "rej") or data.startswith("at:"):
             self.release_slot(draft)

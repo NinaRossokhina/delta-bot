@@ -24,7 +24,7 @@ class PollTest(unittest.TestCase):
         def fake(method, **p):
             self.calls.append((method, p))
             return {"message_id": 99}
-        for target, val in [("poll.call", fake), ("poll.now_msk", lambda: self.now)]:
+        for target, val in [("poll.call", fake), ("poll.now_msk", lambda: self.now), ("schedule.now_msk", lambda: self.now)]:
             pa = mock.patch(target, val); pa.start(); self.addCleanup(pa.stop)
         poll.AI_ENABLED = False
         self.bot = poll.Bot()
@@ -219,7 +219,7 @@ class PollTest(unittest.TestCase):
         self.assertEqual([b["text"] for b in rows[-1]], ["Изменить", "Сейчас, 02.10", "Отклонить"])
         rows = poll.draft_buttons("2026-10-03T09:25", mark=True)["inline_keyboard"]  # a random time for tomorrow
         self.assertEqual([b["text"] for b in rows[0]], ["◀ 02.10", "📅 сб, 03.10", "04.10 ▶"])
-        self.assertEqual([b["callback_data"] for b in rows[0]], ["d:2026-10-02T09:25", "done", "d:2026-10-04T09:25"])
+        self.assertEqual([b["callback_data"] for b in rows[0]], ["d:2026-10-02T09:25", "dl", "d:2026-10-04T09:25"])
         self.assertEqual([b["text"] for b in rows[1] + rows[2]][:4], ["07:00", "08:00", "09:00", "• 09:25"])
         self.assertEqual(rows[1][0]["callback_data"], "at:2026-10-03T07:00")
 
@@ -243,6 +243,17 @@ class PollTest(unittest.TestCase):
         marks = [p["reply_markup"] for m, p in self.calls if m == "editMessageReplyMarkup"]
         self.assertIn("at:2026-10-03T09:00", str(marks[0]))
         self.assertIn("at:2026-10-04T15:30", str(marks[1]))
+
+    def test_tapping_the_date_explains_and_queues_nothing(self):
+        d = draft(10); d["reply_markup"] = poll.draft_buttons("2026-10-03T07:15", mark=True)
+        for data in ("dl", "done"):  # drafts sent before this fix have "done" on the date
+            self.calls.clear()
+            self.button(10, data, d)
+            ans = [p for m, p in self.calls if m == "answerCallbackQuery"][0]
+            self.assertTrue(ans["show_alert"])
+            self.assertIn("Это только дата: 03.10", ans["text"])
+            self.assertIn("«• 07:15»", ans["text"])
+        self.assertEqual(self.bot.queue, [])
 
     def test_date_buttons_change_the_day(self):
         d = draft(10, "2026-10-02T15:40"); d["reply_markup"] = poll.draft_buttons("2026-10-02T15:40", mark=True)

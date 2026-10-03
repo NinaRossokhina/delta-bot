@@ -219,6 +219,13 @@ class AiTest(unittest.TestCase):
         self.assertEqual(len(self.requests), 1)
         self.assertFalse(ai.drafts_exist("2026-10-03"))  # the day part is still to come
 
+    def test_late_evening_run_after_midnight_is_for_this_morning(self):
+        with mock.patch("ai.now_msk", lambda: "2026-10-03T01:01"):  # GitHub started the 21:00 run four hours late
+            self.assertEqual(ai.part_day("morning"), "2026-10-03")
+        with mock.patch("ai.now_msk", lambda: "2026-10-02T21:05"):
+            self.assertEqual(ai.part_day("morning"), "2026-10-03")
+            self.assertEqual(ai.part_day("day"), "2026-10-02")
+
     def test_day_part_after_the_morning_one(self):
         os.mkdir("drafts")
         open("drafts/2026-10-02-am.json", "w").write("[]")  # sent last evening

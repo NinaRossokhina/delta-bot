@@ -38,7 +38,7 @@ def draft_buttons(at, image=False, mark=False, now=None):
     time with "•". «Сейчас» shows today's date. image=True adds «Другая картинка» (posts from voice messages)."""
     now = now or now_msk()
     day, times = at[:10], sorted(set(SLOTS) | {at[11:]})
-    date = [{"text": f"📅 {WEEKDAYS[datetime.fromisoformat(day).weekday()]}, {ddmm(day)}", "callback_data": "done"},
+    date = [{"text": f"📅 {WEEKDAYS[datetime.fromisoformat(day).weekday()]}, {ddmm(day)}", "callback_data": "dl"},
             {"text": f"{ddmm(shift_day(day, 1))} ▶", "callback_data": f"d:{shift_day(day, 1)}T{at[11:]}"}]
     if day > now[:10]:
         date.insert(0, {"text": f"◀ {ddmm(shift_day(day, -1))}", "callback_data": f"d:{shift_day(day, -1)}T{at[11:]}"})

@@ -259,9 +259,12 @@ def draft_path(day, name=""):
 
 
 def part_day(part):
-    """The day a daily part is for: tomorrow for the morning part (sent the evening before), else today."""
-    today = date.fromisoformat(now_msk()[:10])
-    return str(today + timedelta(days=1) if PARTS[part]["tomorrow"] else today)
+    """The day a daily part is for: the next morning for the morning part (sent the evening before;
+    today if the run comes late, after midnight and before the first post), else today."""
+    now = now_msk()
+    today = date.fromisoformat(now[:10])
+    tomorrow = PARTS[part]["tomorrow"] and now[11:] >= PARTS[part]["start"]
+    return str(today + timedelta(days=1) if tomorrow else today)
 
 
 def daily_task(part):
