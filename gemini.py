@@ -26,7 +26,8 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # The alias always points to the current Flash model (free tier); the GEMINI_MODEL repository
 # variable replaces it without a code change.
 MODEL = os.environ.get("GEMINI_MODEL") or "gemini-flash-latest"
-RATE_LIMIT_WAITS = (20, 40, 60)  # seconds to wait after "too many requests" before giving up
+SPARE_MODEL = "gemini-flash-lite-latest"  # also free; used when MODEL stays busy (503 "high demand")
+RATE_LIMIT_WAITS = (20, 40, 60)  # seconds to wait after "too many requests" or "busy" before giving up
 UA = {"User-Agent": "Mozilla/5.0 (compatible; DeltaBot/1.0)"}
 
 WEB_SEARCH = {"type": "function", "function": {
@@ -87,17 +88,18 @@ def chat(messages, tools=None, response_format=None, max_tokens=16000, sleep=tim
             messages = _with_json_hint(messages, response_format)
     elif response_format:
         params["response_format"] = response_format
-    for wait in (*RATE_LIMIT_WAITS, None):
+    attempts = [(MODEL, w) for w in RATE_LIMIT_WAITS] + [(SPARE_MODEL, 0), (SPARE_MODEL, None)]
+    for model, wait in attempts:
         try:
-            response = client().chat.completions.create(model=MODEL, messages=messages, max_tokens=max_tokens, **params)
+            response = client().chat.completions.create(model=model, messages=messages, max_tokens=max_tokens, **params)
             break
-        except openai.RateLimitError as e:
+        except (openai.RateLimitError, openai.InternalServerError) as e:  # quota or "high demand": wait, then the spare model
             if wait is None:
-                raise Failed(f"лимит бесплатных запросов: {str(e)[:150]}") from e
+                raise Failed(f"Gemini перегружен или кончился лимит: {str(e)[:150]}") from e
             sleep(wait)
         except openai.APIError as e:
             raise Failed(f"{type(e).__name__}: {str(e)[:200]}") from e
-    costs.record(f"google/{MODEL}", {"cost": 0})
+    costs.record(f"google/{model}", {"cost": 0})
     if not response.choices:
         raise Failed("пустой ответ")
     return response.choices[0]

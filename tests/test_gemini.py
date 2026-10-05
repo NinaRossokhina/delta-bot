@@ -80,15 +80,26 @@ class GeminiTest(unittest.TestCase):
 
     def test_rate_limit_waits_then_gives_up(self):
         waits = []
-        self.g_replies += [(429, {"error": {"message": "quota"}})] * 4
+        self.g_replies += [(429, {"error": {"message": "quota"}})] * 5
         with self.assertRaises(gemini.Failed):
             gemini.chat([{"role": "user", "content": "hi"}], sleep=waits.append)
-        self.assertEqual(waits, list(gemini.RATE_LIMIT_WAITS))
+        self.assertEqual(waits, [*gemini.RATE_LIMIT_WAITS, 0])
+
+    def test_busy_model_waits_then_uses_the_spare_one(self):
+        waits = []
+        busy = (503, {"error": {"code": 503, "message": "This model is currently experiencing high demand."}})
+        self.g_replies += [busy] * 3 + [busy, (200, completion("ok"))]
+        choice = gemini.chat([{"role": "user", "content": "hi"}], sleep=waits.append)
+        self.assertEqual(choice.message.content, "ok")
+        self.assertEqual(waits, [*gemini.RATE_LIMIT_WAITS, 0])
+        models = [json.loads(r.content)["model"] for r in self.g_requests]
+        self.assertEqual(models, [gemini.MODEL] * 3 + [gemini.SPARE_MODEL] * 2)
+        self.assertEqual(costs.load()[-1]["model"], f"google/{gemini.SPARE_MODEL}")
 
     def test_request_does_not_resend_drafts_through_polza(self):
         self.g_replies += [(200, completion(tool_calls=[("send_drafts", {"posts": [
                                {"text": "<b>A</b>", "media": "", "media_type": "none", "day": "2026-10-02"}]})])),
-                           (500, {"error": {"message": "boom"}})]
+                           (400, {"error": {"message": "boom"}})]
         with mock.patch("ai.send", return_value={"message_id": 1}) as send:
             self.assertEqual(ai.free_first(ai.run, {"kind": "chat", "text": "пришли новость"}), "Готово.")
         send.assert_called_once()
