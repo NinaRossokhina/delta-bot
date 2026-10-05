@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 
 import ai
 import costs
+import gemini
 import polza
 from schedule import next_free_slot, now_msk
 from send_drafts import send
@@ -228,9 +229,13 @@ def rate(items):
     """Scores of the new items from the cheap model: {index: (score, covered)}."""
     listing = "\n".join(f"{i}. [{x['source']}] {x['title']} ({x['url']})" for i, x in enumerate(items))
     prompt = RATE_TASK.format(recent=ai.recent_headlines(days=3) or "(none)", items=listing)
-    choice = polza.chat([{"role": "user", "content": prompt}], model=CHEAP_MODEL, max_tokens=3000,
-                        response_format=polza.json_schema("rated_items", RATE_SCHEMA))
-    rated = json.loads(polza.text(choice.message))["items"]
+    messages, schema = [{"role": "user", "content": prompt}], polza.json_schema("rated_items", RATE_SCHEMA)
+
+    def ask():
+        if gemini.on():
+            return ai.answer_json(gemini.chat(messages, max_tokens=3000, response_format=schema).message)
+        return json.loads(polza.text(polza.chat(messages, model=CHEAP_MODEL, max_tokens=3000, response_format=schema).message))
+    rated = ai.free_first(ask, quiet=True)["items"]  # quiet: this runs every few minutes
     return {r["i"]: (r["score"], r["covered"]) for r in rated if 0 <= r["i"] < len(items)}
 
 
@@ -239,8 +244,8 @@ def write_post(item):
     tools = [t for t in ai.TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": ai.system_prompt()},
                 {"role": "user", "content": HOT_TASK.format(**item)}]
-    for _ in range(12):
-        choice = polza.chat(messages, tools=tools, web=True, response_format=polza.json_schema("hot_post", HOT_SCHEMA))
+    for step in range(12):
+        choice = ai.ask(messages, tools=tools, web=step == 0, response_format=polza.json_schema("hot_post", HOT_SCHEMA))
         message = choice.message
         if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
             raise RuntimeError("the model refused")
@@ -250,7 +255,7 @@ def write_post(item):
                 result, _ = ai.use_tool(tool_call, {"kind": "hot"})
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
             continue
-        post = json.loads(polza.text(message))
+        post = ai.answer_json(message)
         return None if post["skip"] or not post["text"].strip() else post
     raise RuntimeError("no answer after 12 steps")
 
@@ -348,7 +353,7 @@ def check(sources=SOURCES, fetch=get):
             for _, i in hot[:MAX_POSTS]:
                 item = new[i]
                 try:
-                    post = write_post(item)
+                    post = ai.free_first(write_post, item)
                     if post:
                         paths.append(deliver(post))
                     else:

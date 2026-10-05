@@ -23,6 +23,9 @@ jobs:
         run: python hot.py
         env:
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+          # Free Gemini instead of Polza when this secret is set (gemini.py); GEMINI_MODEL is optional
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
       - if: always() && hashFiles('.hot/*') != ''

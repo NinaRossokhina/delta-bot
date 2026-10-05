@@ -125,6 +125,11 @@ Workflows (`.github/workflows/`, вкладка Actions на GitHub):
 - `TELEGRAM_BOT_TOKEN` — токен бота от @BotFather.
 - `POLZA_API_KEY` — ключ Polza AI (polza.ai, личный кабинет). Без него бот публикует посты и
   понимает кнопки, но не пишет посты сам и не слушает голосовые.
+- `GEMINI_API_KEY` — бесплатный ключ Google Gemini (aistudio.google.com → Get API key; из России
+  страница открывается только через VPN). С ним черновики на день, просьбы, правки и срочные новости
+  делает бесплатный Gemini, а Polza остаётся только для голосовых, картинок и запасным вариантом:
+  если Gemini не ответил, бот напишет почему и сделает через Polza. Без ключа всё идёт через Polza.
+  Другую модель Gemini можно задать переменной `GEMINI_MODEL` (Variables рядом с Secrets).
 
 На Cloudflare (Settings → Variables and Secrets воркера):
 
