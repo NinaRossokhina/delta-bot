@@ -239,8 +239,8 @@ def write_post(item):
     tools = [t for t in ai.TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": ai.system_prompt()},
                 {"role": "user", "content": HOT_TASK.format(**item)}]
-    for _ in range(12):
-        choice = polza.chat(messages, tools=tools, web=True, response_format=polza.json_schema("hot_post", HOT_SCHEMA))
+    for step in range(12):
+        choice = polza.chat(messages, tools=tools, web=step == 0, response_format=polza.json_schema("hot_post", HOT_SCHEMA))
         message = choice.message
         if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
             raise RuntimeError("the model refused")

@@ -62,9 +62,10 @@ TOOLS = [
          "required": ["posts"], "additionalProperties": False},
     ),
 ]
-PAGE_LIMIT = 8000
+PAGE_LIMIT = 3000  # every later request resends fetched pages, so they cost again on each step
 RUBRICS = ["news_of_the_day", "research", "good_news", "useful_find", "other_side", "humor", "digest"]
 DAILY_COUNT = 7
+DAILY_STEPS = 8  # requests at most; each one resends everything found so far
 # Nina approves the next day's news in the evening ("next", 21:00 Yekaterinburg), because she wakes up
 # after the first posts are due. A daily task without "part" (by hand) makes today's.
 PARTS = {
@@ -78,7 +79,7 @@ DAILY_SCHEMA = {
         "properties": {
             "rubric": {"type": "string", "enum": RUBRICS, "description": "Rubric from the style guide."},
             "text": {"type": "string", "description": "Telegram HTML: <b>headline</b>, short paragraphs separated by \\n\\n, source woven into the text as <a href='...'>word</a>, " + LENGTH + "."},
-            "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post."},
+            "image": {"type": "string", "description": "Direct .jpg/.png image URL for the post, or empty: then the source page's og:image is used."},
             "source": {"type": "string", "description": "URL of the primary source the facts were checked against."},
         },
         "required": ["rubric", "text", "image", "source"],
@@ -92,7 +93,7 @@ DAILY_TASK = """Prepare posts for the channel: exactly {count} fresh news storie
 - Order the posts by relevance: the most important and freshest story first, the least urgent last. They are published in this order through the day.
 - Only positive stories: no alarming news, scandals, layoffs, wars or disasters.
 - Check every fact against the primary source (fetch_page) and link the source as a hyperlinked word.
-- Each post strictly follows the style guide (its voice section too), 400-600 characters, with a direct .jpg/.png image URL you saw on the source page (og:image is ideal).
+- Each post strictly follows the style guide (its voice section too), 400-600 characters, with a direct .jpg/.png image URL if you saw one; otherwise leave "image" empty: the bot takes og:image from the source page itself.
 - Do not repeat stories from the recent drafts listed above.
 Return the posts as JSON in the given format (this time not through send_drafts: the workflow saves and sends them)."""
 
@@ -155,7 +156,8 @@ Headlines of recent drafts (do not repeat these stories):
 {recent_headlines() or "(none)"}
 
 How to work:
-- Research with web search (results come with each request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
+- Research with web search (its results come only with your first request) and fetch_page. Use fresh news (last 1-2 days unless Nina asks otherwise) and check key facts against the primary source.
+- Every request resends the whole conversation and costs money, so take as few steps as you can: open pages only when the search results lack a key fact, at most one page per story, and call fetch_page for all of them at once in one turn (several calls in parallel), not one by one.
 - Deliver posts only through the send_drafts tool, all in one call. Set each post's day to the date it should be published (today unless Nina asks for another day). Text is Telegram HTML (<b>, <i>, <a href>), no emoji, {LENGTH}. Write in the voice the style guide describes: a smart, passionate person, not a press release.
 - Media: a direct JPG/PNG image URL that you saw on the source page (og:image is ideal; avoid .webp and .avif). If only the page itself has a good preview, use media_type "link" with the page URL. Otherwise media_type "none".
 - After send_drafts, finish with one short sentence for Nina (for example, what you found). If her message is not a request for posts, just answer it briefly without calling send_drafts.
@@ -229,9 +231,9 @@ def run(task):
         user = task["text"]
     messages = [{"role": "system", "content": system_prompt()}, {"role": "user", "content": user}]
     sent = 0
-    for _ in range(12):
-        # Web search runs on every request it is on, so turn it off once the drafts are sent.
-        choice = polza.chat(messages, tools=TOOLS, web=not sent)
+    for step in range(12):
+        # Web search is paid per request and its results fill the prompt, so it runs only on the first one.
+        choice = polza.chat(messages, tools=TOOLS, web=step == 0)
         message = choice.message
         if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
             return "Не получилось подготовить это, попробуй сформулировать иначе."
@@ -278,8 +280,9 @@ def daily(part=None):
     tools = [t for t in TOOLS if t["function"]["name"] == "fetch_page"]
     messages = [{"role": "system", "content": system_prompt()},
                 {"role": "user", "content": daily_task(part)}]
-    for _ in range(20):
-        choice = polza.chat(messages, tools=tools, web=True,
+    for step in range(DAILY_STEPS):
+        last = step == DAILY_STEPS - 1  # no tools on the last step: the model has to give the posts
+        choice = polza.chat(messages, tools=None if last else tools, web=step == 0,
                             response_format=polza.json_schema("daily_posts", DAILY_SCHEMA))
         message = choice.message
         if choice.finish_reason == "content_filter" or getattr(message, "refusal", None):
@@ -299,6 +302,9 @@ def daily(part=None):
         now = max(f"{day}T00:00", now_msk())
         times = random_times(len(news), now, start=p["start"], end=p["end"]) if news else []
         times = times + [digest_time(times[-1] if times else None)] * len(digest)  # the digest always last
+        for x in news + digest:
+            if not x["image"] and x["source"]:
+                x["image"] = fetch_page(x["source"]).get("og_image", "")
         drafts = [{"text": p["text"], "media": p["image"] or None, "media_type": "photo" if p["image"] else "none",
                    "time": t, "suggested": True, "digest": p["rubric"] == "digest"} for p, t in zip(news + digest, times)]
         path = draft_path(day, "")
@@ -306,7 +312,7 @@ def daily(part=None):
             json.dump(drafts, f, ensure_ascii=False, indent=1)
             f.write("\n")
         return path
-    raise RuntimeError("no answer after 20 steps")
+    raise RuntimeError(f"no answer after {DAILY_STEPS} steps")
 
 
 FAILED_TODAY = "Сегодня черновики не собрались: {}"

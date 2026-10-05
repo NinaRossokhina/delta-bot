@@ -90,7 +90,7 @@ class AiTest(unittest.TestCase):
         fp.assert_called_once_with("https://example.com/news")
         tool_msg = self.bodies()[1]["messages"][-1]
         self.assertEqual(json.loads(tool_msg["content"]), page)
-        self.assertIn("plugins", self.bodies()[1])  # still researching
+        self.assertNotIn("plugins", self.bodies()[1])  # web search only on the first request: it is paid each time
         self.assertEqual(self.sent, [])
 
     def test_edit_keeps_media_type_and_marks_old_draft(self):
@@ -186,6 +186,30 @@ class AiTest(unittest.TestCase):
         self.assertIn("digest", task)
         self.assertEqual(self.sent, [])  # sending is send.yml's job
         self.assertEqual(self.calls, [])
+
+    def test_daily_takes_missing_images_from_the_source(self):
+        os.mkdir("drafts")
+        posts = self.daily_posts()["posts"]
+        posts[0]["image"] = ""
+        self.replies = [completion(json.dumps({"posts": posts}))]
+        with mock.patch("ai.fetch_page", return_value={"og_image": "https://src/og.jpg"}) as fp:
+            drafts = json.load(open(ai.daily()))
+        fp.assert_called_once_with("https://src/0")
+        self.assertEqual((drafts[0]["media"], drafts[0]["media_type"]), ("https://src/og.jpg", "photo"))
+        self.assertEqual(drafts[1]["media"], "https://img/1.jpg")
+
+    def test_daily_last_step_has_no_tools(self):
+        os.mkdir("drafts")
+        self.replies = [completion(tool_calls=[("fetch_page", {"url": "https://src/1"})])] * (ai.DAILY_STEPS - 1) + [
+            completion(json.dumps(self.daily_posts(), ensure_ascii=False))]
+        with mock.patch("ai.fetch_page", return_value={"title": "T"}):
+            ai.daily()
+        bodies = self.bodies()
+        self.assertEqual(len(bodies), ai.DAILY_STEPS)
+        self.assertIn("plugins", bodies[0])
+        self.assertTrue(all("plugins" not in b for b in bodies[1:]))  # web search is paid per request
+        self.assertTrue(all("tools" in b for b in bodies[:-1]))
+        self.assertNotIn("tools", bodies[-1])
 
     def test_daily_does_not_overwrite_and_caps_at_7(self):
         os.mkdir("drafts")
