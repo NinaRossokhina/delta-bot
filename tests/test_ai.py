@@ -147,8 +147,9 @@ class AiTest(unittest.TestCase):
         self.assertNotIn("var a", got["text"])
         self.assertIn("error", ai.fetch_page("file:///etc/passwd"))
 
-    def daily_posts(self, n=7):
-        rubrics = ["news_of_the_day", "research", "useful_find", "news_of_the_day", "good_news", "humor", "research"][:n] + ["digest"]
+    def daily_posts(self, n=8):
+        rubrics = ["news_of_the_day", "research", "useful_find", "news_of_the_day", "good_news", "humor", "research",
+                   "good_news"][:n] + ["digest"]  # a digest the model still sends is dropped
         return {"posts": [{"rubric": r, "text": f"<b>Пост {i}</b>\n\nТекст <a href='https://src/{i}'>источник</a>",
                            "image": f"https://img/{i}.jpg", "source": f"https://src/{i}"} for i, r in enumerate(rubrics)]}
 
@@ -159,19 +160,19 @@ class AiTest(unittest.TestCase):
         out = os.path.join(self.dir.name, "out")
         os.environ.update(TASK='{"kind": "daily"}', GITHUB_OUTPUT=out)
         self.addCleanup(os.environ.pop, "GITHUB_OUTPUT")
-        times = ["09:20", "10:40", "12:05", "14:30", "16:10", "18:55", "21:35"]
+        times = ["08:10", "09:20", "10:40", "12:05", "14:30", "16:10", "18:55", "21:35"]
         with mock.patch("ai.fetch_page", return_value={"title": "T"}), \
                 mock.patch("ai.random_times", return_value=times) as rt:
             ai.main()
-        rt.assert_called_once_with(7, "2026-10-02T10:00", start="07:00", end="21:00")
+        rt.assert_called_once_with(8, "2026-10-02T10:00", start="07:00", end="22:00")
         self.assertEqual(open(out).read(), "file=drafts/2026-10-02.json\n")
         drafts = json.load(open("drafts/2026-10-02.json", encoding="utf-8"))
-        self.assertEqual([d["time"] for d in drafts], times + ["22:00"])  # the model's order: most relevant first
-        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(8)])  # 7: the digest
+        self.assertEqual([d["time"] for d in drafts], times)  # the model's order: most relevant first
+        self.assertEqual([d["text"][:9] for d in drafts], [f"<b>Пост {i}" for i in range(8)])  # no digest
         self.assertEqual(drafts[0], {"text": "<b>Пост 0</b>\n\nТекст <a href='https://src/0'>источник</a>",
-                                     "media": "https://img/0.jpg", "media_type": "photo", "time": "09:20",
+                                     "media": "https://img/0.jpg", "media_type": "photo", "time": "08:10",
                                      "suggested": True, "digest": False})
-        self.assertTrue(drafts[-1]["digest"])
+        self.assertFalse(any(d["digest"] for d in drafts))
         first = self.bodies()[0]
         self.assertEqual(first["response_format"]["type"], "json_schema")
         self.assertTrue(first["response_format"]["json_schema"]["strict"])
@@ -180,14 +181,14 @@ class AiTest(unittest.TestCase):
         self.assertEqual([t["function"]["name"] for t in first["tools"]], ["fetch_page"])
         task = first["messages"][1]["content"]
         self.assertIn("positive", task)
-        self.assertIn("exactly 7", task)
+        self.assertIn("exactly 8", task)
+        self.assertNotIn("digest", task)
         self.assertIn("artificial intelligence", task)
         self.assertIn("by relevance", task)
-        self.assertIn("digest", task)
         self.assertEqual(self.sent, [])  # sending is send.yml's job
         self.assertEqual(self.calls, [])
 
-    def test_daily_does_not_overwrite_and_caps_at_7(self):
+    def test_daily_does_not_overwrite_and_caps_at_8(self):
         os.mkdir("drafts")
         open("drafts/2026-10-02.json", "w").write("[]")
         posts = self.daily_posts()["posts"]
@@ -197,9 +198,7 @@ class AiTest(unittest.TestCase):
         drafts = json.load(open(path))
         self.assertEqual(len(drafts), 8)
         self.assertTrue(drafts[0]["text"].startswith("<b>Пост 0</b>"))
-        self.assertTrue(drafts[6]["text"].startswith("<b>Пост 6</b>"))
-        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))  # the digest, always last
-        self.assertEqual(drafts[-1]["time"], "22:00")
+        self.assertTrue(drafts[-1]["text"].startswith("<b>Пост 7</b>"))  # the digest (Пост 8) is dropped
         self.assertEqual([d["time"] for d in drafts], sorted(d["time"] for d in drafts))
 
     def test_evening_run_is_for_tomorrow(self):
@@ -208,12 +207,12 @@ class AiTest(unittest.TestCase):
         os.environ["TASK"] = ""  # the schedule passes no task: 21:00 Yekaterinburg
         ai.main()
         drafts = json.load(open("drafts/2026-10-03.json"))
-        self.assertEqual(len(drafts), 8)  # 7 news and the digest
-        self.assertTrue(drafts[-1]["digest"])
-        times = [d["time"] for d in drafts[:-1]]
-        self.assertTrue("07:00" <= times[0] and times[-1] <= "21:00" and times == sorted(times), times)
+        self.assertEqual(len(drafts), 8)  # 8 news, no digest
+        self.assertFalse(any(d["digest"] for d in drafts))
+        times = [d["time"] for d in drafts]
+        self.assertTrue("07:00" <= times[0] and times[-1] <= "22:00" and times == sorted(times), times)
         task = self.bodies()[0]["messages"][1]["content"]
-        self.assertIn("exactly 7", task)
+        self.assertIn("exactly 8", task)
         self.assertIn("tomorrow", task)
         ai.main()  # tomorrow's drafts are there: nothing to do
         self.assertEqual(len(self.requests), 1)
@@ -287,14 +286,14 @@ class AiTest(unittest.TestCase):
             got = random_times(7, "2026-10-02T05:00", random.Random(seed))
             m = mins(got)
             self.assertEqual(len(m), 7)
-            self.assertTrue(7 * 60 <= m[0] and m[-1] <= 21 * 60, got)
+            self.assertTrue(7 * 60 <= m[0] and m[-1] <= 22 * 60, got)
             self.assertTrue(all(b - a >= 60 for a, b in zip(m, m[1:])), got)
             self.assertTrue(all(x % 5 == 0 for x in m), got)
             seen.add(tuple(got))
         self.assertGreater(len(seen), 250)  # really random
         late = mins(random_times(7, "2026-10-02T15:02", random.Random(1)))  # a run by hand in the afternoon
         self.assertGreaterEqual(late[0], 15 * 60 + 20)
-        self.assertLessEqual(late[-1], 21 * 60)
+        self.assertLessEqual(late[-1], 22 * 60)
         from schedule import digest_time
         self.assertEqual(digest_time("20:40"), "22:00")
         self.assertEqual(digest_time("22:15"), "22:20")  # a late run: still after the news
