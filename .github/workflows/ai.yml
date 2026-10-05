@@ -28,6 +28,9 @@ jobs:
         env:
           TASK: ${{ github.event.inputs.task }}  # empty for the schedule: ai.py runs a daily part
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+          # Free Gemini instead of Polza when this secret is set (gemini.py); GEMINI_MODEL is optional
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_CHAT_ID: "813825039"
       # Bot state the task changed: a reason for feedback.md (an answer to «Почему?»), image prompts
