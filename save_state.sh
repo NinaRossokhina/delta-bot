@@ -7,10 +7,12 @@
 # Usage: bash save_state.sh "commit message" file...
 set -u
 msg=$1; shift
+# The rebase in "git pull --rebase" re-commits our commit, so it needs an identity too, not only "git commit".
+export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+export GIT_COMMITTER_NAME=$GIT_AUTHOR_NAME GIT_COMMITTER_EMAIL=$GIT_AUTHOR_EMAIL
 for f in "$@"; do [ -e "$f" ] && git add -- "$f"; done
 git diff --cached --quiet && exit 0
-git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-  commit -qm "$msg"
+git commit -qm "$msg"
 for i in 1 2 3 4 5; do
   if git pull -q --rebase origin main; then
     git push -q origin HEAD:main && exit 0
