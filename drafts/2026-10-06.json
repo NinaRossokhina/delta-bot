@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>Одна нейросеть рисует, снимает кино и управляет роботом</b>\n\nОбычно ИИ-помощник — это бригада: главная модель раздаёт задачи узким специалистам, и на каждой передаче что-то теряется. <a href='https://reka.ai/labs/research/rho-1-collapsing-the-multimodal-stack'>Rho-1 от Reka</a> работает одна: нарисовала маяк, обвела его рамкой, сняла пролёт дрона, устроила метель и объяснила, что изменилось.\n\nЭто пока исследовательская версия: видео всего 672×384, а правки капризничают. Зато обучили её за три месяца на 320 видеокартах, по меркам отрасли скромно.",
+  "media": "https://framerusercontent.com/images/S0M7ncyvVb3ojHk3zlq8AbmaY.jpg",
+  "media_type": "photo",
+  "time": "07:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>ChatGPT начнёт ставить на тексты невидимую метку</b>\n\nOpenAI вводит водяной знак textGrain: глазом его не заметить, а машина прочтёт. В ближайшие недели он появится у пользователей ChatGPT и Codex в ЕС. В остальном мире по умолчанию его нет, но разработчики через API могут включить метку сами.\n\nИдеальной она не будет, и в компании это сами признают. Метка не гарантирует, что текст найдут, не проверяет, правдив ли он, и не доказывает, что писал не человек. <a href='https://www.theverge.com/ai-artificial-intelligence/1004880/openai-chatgpt-text-watermarks-eu-ai-act'>Пишет The Verge</a>. Детектор пока только для исследователей.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2025/10/STK155_OPEN_AI_CVirginia__C.jpg?quality=90&strip=all&crop=0%2C10.732984293194%2C100%2C78.534031413613&w=1200",
+  "media_type": "photo",
+  "time": "09:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Европа выложила свою открытую модель, и она шустрая</b>\n\nНемецкая Aleph Alpha выпустила Kolibri, языковую модель для немецкого и английского. Всего в ней 78 миллиардов параметров, но на каждое слово работает около трёх. Это как открывать из огромной библиотеки только нужные полки, поэтому, по словам компании, она быстрее похожих моделей.\n\nВеса лежат в открытом доступе под лицензией Apache 2.0, скачать может любой желающий. Обучали её в Германии и Финляндии, <a href='https://the-decoder.com/aleph-alpha-releases-kolibri-an-open-weight-model-that-makes-the-case-for-european-ai-sovereignty/'>пишет The Decoder</a>.",
+  "media": "https://the-decoder.com/wp-content/uploads/2026/10/kolibri_aleph_alpha.png",
+  "media_type": "photo",
+  "time": "13:10",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>В Юте ИИ выписывает первые рецепты от акне</b>\n\nПять селфи с разных ракурсов, короткая анкета, 10–15 минут — и приложение Nolla Derm выдаёт план лечения и, если всё подходит, рецепт. Без визита к врачу. По словам компании, она первой в США получила от штата разрешение на ИИ, который выписывает именно первый рецепт, а не продлевает старый.\n\nРамки жёсткие: только кремы и гели, только взрослые жители Юты с лёгкой и средней формой. Беременных и тяжёлые случаи ИИ отправляет к врачу. Пилот стоит $4.99 в месяц, <a href='https://www.unite.ai/nolla-health-launches-ai-issued-initial-acne-prescriptions-in-utah/'>подробности у Unite.AI</a>.",
+  "media": "https://www.unite.ai/wp-content/uploads/2026/10/nolla-health-launches-ai-issued-initial-acne-prescriptions-in-utah.jpg",
+  "media_type": "photo",
+  "time": "14:20",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Нейросеть не глупая. Она просто плохо видела</b>\n\nИсследователи MIT решили, что ИИ-модели проваливают игры-головоломки не из-за слабых мозгов, а из-за слабого зрения. Им дали обычные скриншоты и память, где каждый кадр хранится без потерь. Claude Opus 5.0 на тесте ARC-AGI-3 подскочил с 40,68 до идеальных 100 баллов и прошёл все 25 публичных игр, сделав на 57% меньше ходов, чем люди-новички.\n\nЧестная оговорка авторов: проверка на закрытых играх ещё впереди. Подробности в <a href='https://arxiv.org/abs/2610.02200'>статье на arXiv</a>.",
+  "media": "https://arxiv.org/static/browse/0.3.4/images/arxiv-logo-fb.png",
+  "media_type": "photo",
+  "time": "15:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>У Луны появилась нейросеть, которая ищет лёд</b>\n\nNASA и IBM выпустили открытую модель, обученную на 17 годах данных лунных зондов: почти 2 миллиона фрагментов поверхности. Лучше всего она предсказывает, где на полюсах прячется водяной лёд. Ошибка у неё меньше до 22%, чем у лучшего из соперников. А лёд для будущих экспедиций это вода, кислород и ракетное топливо.\n\nДля точных измерений модель не годится: это помощник учёных, а не замена приборам. Зато она доступна всем, <a href='https://the-decoder.com/nasa-and-ibms-open-source-lunar-model-turns-17-years-of-orbiter-data-into-a-foundation-for-lunar-science/'>рассказывает The Decoder</a>.",
+  "media": "https://the-decoder.com/wp-content/uploads/2026/10/nasa-ibm-research-moon-crater-ice-nano-banana-pro.jpg",
+  "media_type": "photo",
+  "time": "17:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>JetBrains собрала рабочий стол для ИИ-программистов</b>\n\nРаньше агент писал код где-то сбоку, а вы заглядывали через плечо. В <a href='https://www.jetbrains.com/air/'>JetBrains Air</a> можно запустить сразу нескольких агентов, например Claude, Codex или Copilot. Вы смотрите их правки в контексте и оставляете комментарии к конкретным строкам. Звучит как команда стажёров, где вы главный ревьюер.\n\nПодключить можно свои подписки или ключи. Облачные запуски раскатывают постепенно, в ближайшие месяцы.",
+  "media": "https://resources.jetbrains.com/storage/products/air/img/meta/preview.png",
+  "media_type": "photo",
+  "time": "20:40",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nИИ научился многому: <a href='https://reka.ai/labs/research/rho-1-collapsing-the-multimodal-stack'>Rho-1</a> рисует, снимает видео и управляет роботом в одной модели.\n\nУченым пригодятся новые инструменты: <a href='https://the-decoder.com/nasa-and-ibms-open-source-lunar-model-turns-17-years-of-orbiter-data-into-a-foundation-for-lunar-science/'>модель NASA и IBM</a> ищет лёд на Луне, а MIT <a href='https://arxiv.org/abs/2610.02200'>вернул ИИ зрение</a> и получил идеальный балл в тесте.\n\nЕвропа получила открытую модель <a href='https://the-decoder.com/aleph-alpha-releases-kolibri-an-open-weight-model-that-makes-the-case-for-european-ai-sovereignty/'>Kolibri</a>, а в Юте ИИ <a href='https://www.unite.ai/nolla-health-launches-ai-issued-initial-acne-prescriptions-in-utah/'>выписывает рецепты от акне</a>.",
+  "media": "https://the-decoder.com/wp-content/uploads/2026/10/nasa-ibm-research-moon-crater-ice-nano-banana-pro.jpg",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
