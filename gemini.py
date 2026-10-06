@@ -97,6 +97,7 @@ def chat(messages, tools=None, response_format=None, max_tokens=16000, sleep=tim
         except (openai.RateLimitError, openai.InternalServerError) as e:  # quota or "high demand": wait, then the spare model
             if wait is None:
                 raise Failed(f"Gemini перегружен или кончился лимит: {str(e)[:150]}") from e
+            print(f"gemini {model} busy ({type(e).__name__}), waiting {wait} s", flush=True)
             sleep(wait)
         except openai.APIError as e:
             raise Failed(f"{type(e).__name__}: {str(e)[:200]}") from e
@@ -126,7 +127,8 @@ def _generate(body, sleep):
             with urllib.request.urlopen(request, timeout=120) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
-            if e.code not in (429, 500, 503) or wait is None:
+            # 429 here is the search quota (per day): waiting does not help, the caller switches to news feeds
+            if e.code not in (500, 503) or wait is None:
                 raise Failed(f"поиск Google: HTTP {e.code} {e.read()[:600]!r}") from e
             sleep(wait)
         except OSError as e:

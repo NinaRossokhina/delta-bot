@@ -149,6 +149,14 @@ class GeminiTest(unittest.TestCase):
         sources = collect.call_args[0][0]
         self.assertIn("TechCrunch AI", [x[0] for x in sources])
 
+    def test_search_quota_fails_at_once(self):
+        import urllib.error
+        waits = []
+        error = urllib.error.HTTPError("u", 429, "quota", {}, io.BytesIO(b'{"error": {"status": "RESOURCE_EXHAUSTED"}}'))
+        with mock.patch("urllib.request.urlopen", side_effect=error), self.assertRaises(gemini.Failed):
+            gemini.search("AI", sleep=waits.append)
+        self.assertEqual(waits, [])  # a daily quota: no point in waiting
+
     def test_json_text_accepts_fences(self):
         self.assertEqual(gemini.json_text('```json\n{"a": 1}\n```'), {"a": 1})
         self.assertEqual(gemini.json_text('{"a": 1}'), {"a": 1})
