@@ -32,7 +32,8 @@ UA = {"User-Agent": "Mozilla/5.0 (compatible; DeltaBot/1.0)"}
 
 WEB_SEARCH = {"type": "function", "function": {
     "name": "web_search",
-    "description": "Search the web with Google. Returns a short answer and its sources (title, url). "
+    "description": "Search the web with Google. Returns a short answer and its sources (title, url), or, when "
+                   "Google search is unavailable, a list of fresh headlines from news feeds to choose from. "
                    "Ask for what you need in one query, e.g. «AI news of the last 24 hours: new models and research».",
     "parameters": {"type": "object", "properties": {"query": {"type": "string"}},
                    "required": ["query"], "additionalProperties": False}}}
@@ -126,7 +127,7 @@ def _generate(body, sleep):
                 return json.load(r)
         except urllib.error.HTTPError as e:
             if e.code not in (429, 500, 503) or wait is None:
-                raise Failed(f"поиск Google: HTTP {e.code} {e.read()[:200]!r}") from e
+                raise Failed(f"поиск Google: HTTP {e.code} {e.read()[:600]!r}") from e
             sleep(wait)
         except OSError as e:
             raise Failed(f"поиск Google: {e!r}"[:200]) from e

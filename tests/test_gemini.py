@@ -130,6 +130,25 @@ class GeminiTest(unittest.TestCase):
         self.assertEqual(api.get_header("X-goog-api-key"), "g-key")
         self.assertEqual(json.loads(api.data)["tools"], [{"google_search": {}}])
 
+    def test_web_search_falls_back_to_free_news_feeds(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        items = [{"source": "TechCrunch AI", "title": "Old", "url": "https://t/old", "id": "1", "published": now - timedelta(days=5)},
+                 {"source": "OpenAI", "title": "New model", "url": "https://o/new", "id": "2", "published": now - timedelta(hours=1)},
+                 {"source": "Anthropic", "title": "Claude news", "url": "https://a/n", "id": "3", "published": None}]
+        with mock.patch.dict(ai._google, on=True, news=None), \
+                mock.patch("gemini.search", side_effect=gemini.Failed("HTTP 429 quota")) as search, \
+                mock.patch("hot.collect", return_value=items) as collect:
+            first = ai.web_search("AI news")
+            second = ai.web_search("more AI news")
+        search.assert_called_once()  # Google search is not tried again in this run
+        collect.assert_called_once()  # the feeds are read once
+        self.assertEqual(first, second)
+        self.assertIn("not available", first["answer"])
+        self.assertEqual([x["title"] for x in first["sources"]], ["Claude news", "New model"])
+        sources = collect.call_args[0][0]
+        self.assertIn("TechCrunch AI", [x[0] for x in sources])
+
     def test_json_text_accepts_fences(self):
         self.assertEqual(gemini.json_text('```json\n{"a": 1}\n```'), {"a": 1})
         self.assertEqual(gemini.json_text('{"a": 1}'), {"a": 1})
