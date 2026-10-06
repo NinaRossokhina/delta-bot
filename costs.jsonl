@@ -135,3 +135,10 @@
 {"t": "2026-10-06T19:53", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.16260388}
 {"t": "2026-10-06T19:58", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.1562531}
 {"t": "2026-10-06T20:13", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.1622444}
+{"t": "2026-10-06T23:51", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.36406292}
+{"t": "2026-10-06T23:51", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 3.37382086}
+{"t": "2026-10-06T23:51", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.73168909}
+{"t": "2026-10-06T23:51", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 6.54777194}
+{"t": "2026-10-06T23:51", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 7.52914688}
+{"t": "2026-10-06T23:52", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 8.95172116}
+{"t": "2026-10-06T23:52", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 13.79460877}
