@@ -1,13 +1,9 @@
 name: AI tasks
 on:
-  schedule:
-    # UTC. A backup: the Cloudflare worker starts this on time (GitHub's schedule was hours late or
-    # skipped); if tomorrow's drafts are already there, the run does nothing.
-    - cron: "0 16 * * *"  # 21:00 Yekaterinburg (19:00 Moscow): tomorrow's 7 posts and the digest
   workflow_dispatch:
     inputs:
       task:
-        description: 'Task JSON (see ai.py). {"kind": "daily"} = черновики на сегодня'
+        description: 'Task JSON (see ai.py). {"kind": "daily"} = черновики новостей на сегодня (по расписанию выключены 06.10.2026)'
         required: true
         default: '{"kind": "daily"}'
 permissions:
@@ -26,7 +22,7 @@ jobs:
       - id: ai
         run: python ai.py
         env:
-          TASK: ${{ github.event.inputs.task }}  # empty for the schedule: ai.py runs a daily part
+          TASK: ${{ github.event.inputs.task }}
           POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
           # Free Gemini instead of Polza when this secret is set (gemini.py); GEMINI_MODEL is optional
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

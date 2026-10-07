@@ -1,7 +1,7 @@
 // Delta bot "doorbell" for Cloudflare Workers (free plan).
 // Every minute it checks whether Nina wrote to the bot / pressed a button, or a scheduled
 // post is due, and if so starts the "Publish approved posts" workflow (poll.yml) right away.
-// Every 5 minutes it also starts "Hot news" (hot.yml), the search for breaking AI news.
+// Hot news and the daily news drafts were switched off on 06.10.2026: the channel became a weekly diary.
 // Setup for beginners: cloudflare/README.md.
 // Secrets (Settings -> Variables and Secrets): TELEGRAM_BOT_TOKEN, GITHUB_TOKEN.
 // Trigger (Settings -> Trigger events -> Cron Triggers): * * * * *
@@ -72,48 +72,9 @@ export async function tick(env) {
   }
 }
 
-// Hot news (hot.yml) every HOT_EVERY_MIN minutes: GitHub's own schedule is often late by 10-20 minutes.
-// Returns null when it is not the time.
-export const HOT_EVERY_MIN = 5;
-
-export async function hotTick(env, ms = Date.now()) {
-  if (!env.GITHUB_TOKEN || new Date(ms).getUTCMinutes() % HOT_EVERY_MIN !== 0) return null;
-  try {
-    const r = await github(env, "/actions/workflows/hot.yml/dispatches", {
-      method: "POST", body: JSON.stringify({ ref: "main" }),
-    });
-    return r.ok ? "hot news: started" : redact(`hot news: error ${r.status} ${await r.text()}`, env);
-  } catch (e) {
-    return redact(`hot news: error ${e.message}`, env);
-  }
-}
-
-// The day's drafts (ai.yml) on time: GitHub's own schedule for them was hours late or skipped.
-// UTC hour -> part: 16:00 UTC = 21:00 Yekaterinburg (19:00 Moscow), tomorrow's posts.
-// "scheduled" makes ai.py skip drafts that are already there, so GitHub's late run adds nothing twice.
-export const DAILY = { 16: "next" };
-
-export async function dailyTick(env, ms = Date.now()) {
-  const at = new Date(ms), part = DAILY[at.getUTCHours()];
-  if (!env.GITHUB_TOKEN || !part || at.getUTCMinutes() !== 0) return null;
-  try {
-    const task = JSON.stringify({ kind: "daily", part, scheduled: true });
-    const r = await github(env, "/actions/workflows/ai.yml/dispatches", {
-      method: "POST", body: JSON.stringify({ ref: "main", inputs: { task } }),
-    });
-    return r.ok ? `drafts (${part}): started` : redact(`drafts (${part}): error ${r.status} ${await r.text()}`, env);
-  } catch (e) {
-    return redact(`drafts (${part}): error ${e.message}`, env);
-  }
-}
-
 export default {
   async scheduled(event, env, ctx) {
     console.log(await tick(env));
-    const hot = await hotTick(env, event.scheduledTime);
-    if (hot) console.log(hot);
-    const daily = await dailyTick(env, event.scheduledTime);
-    if (daily) console.log(daily);
   },
   // Opening the worker's URL runs one check and shows the result (handy for testing).
   async fetch(request, env) {

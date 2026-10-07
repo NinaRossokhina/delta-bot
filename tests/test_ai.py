@@ -229,7 +229,7 @@ class AiTest(unittest.TestCase):
     def test_evening_run_is_for_tomorrow(self):
         os.mkdir("drafts")
         self.replies = [completion(json.dumps(self.daily_posts()))]
-        os.environ["TASK"] = ""  # the schedule passes no task: 21:00 Yekaterinburg
+        os.environ["TASK"] = '{"kind": "daily", "part": "next"}'  # by hand: drafts for tomorrow
         ai.main()
         drafts = json.load(open("drafts/2026-10-03.json"))
         self.assertEqual(len(drafts), 8)  # 7 news and the digest
@@ -262,23 +262,20 @@ class AiTest(unittest.TestCase):
             ai.main()
         self.assertEqual(self.calls[0][1]["text"], "Сегодня черновики не собрались: нейросеть вернула ответ не в том формате")
 
-    def test_scheduled_skips_when_drafts_exist(self):
-        os.mkdir("drafts")
-        open("drafts/2026-10-02-extra.json", "w").write("[]")  # not daily drafts
-        self.replies = [completion(json.dumps(self.daily_posts()))]
-        os.environ["TASK"] = ""  # the schedule passes no task
-        ai.main()
-        self.assertTrue(os.path.exists("drafts/2026-10-03.json"))
-        ai.main()  # second evening run: tomorrow's drafts are there
-        self.assertEqual(len(self.requests), 1)
-        self.assertFalse(os.path.exists("drafts/2026-10-03-2.json"))
+    def test_scheduled_daily_is_off(self):
+        # Nina 06.10.2026: the channel is a weekly diary, the schedule (and an old worker) make no drafts
+        for task in ("", json.dumps({"kind": "daily", "part": "next", "scheduled": True})):
+            os.environ["TASK"] = task
+            ai.main()
+        self.assertEqual(self.requests, [])
+        self.assertFalse(os.path.exists("drafts"))
 
-    def test_scheduled_polza_error_reason(self):
+    def test_daily_polza_error_reason(self):
         def handler(request):
             return httpx.Response(402, json={"error": {"code": 402, "message": "Недостаточно средств"}})
         bad = OpenAI(base_url=polza.BASE_URL, api_key="test-key", max_retries=0,
                      http_client=httpx.Client(transport=httpx.MockTransport(handler)))
-        os.environ["TASK"] = ""
+        os.environ["TASK"] = '{"kind": "daily"}'
         with mock.patch("polza._client", bad), self.assertRaises(Exception):
             ai.main()
         text = self.calls[0][1]["text"]
@@ -293,14 +290,14 @@ class AiTest(unittest.TestCase):
         got = ai.recent_headlines()
         self.assertEqual(got, "- <b>Четыре дня назад</b>\n- <b>Сегодня</b>")
 
-    def test_posts_are_up_to_600_characters(self):
-        self.assertEqual(ai.POST_LIMIT, 600)
+    def test_posts_are_up_to_1000_characters(self):
+        self.assertEqual(ai.POST_LIMIT, 1000)
         for prompt in (ai.system_prompt(), ai.voice_system_prompt(),
                        ai.POST_SCHEMA["properties"]["text"]["description"],
                        ai.DAILY_SCHEMA["properties"]["posts"]["items"]["properties"]["text"]["description"],
                        ai.VOICE_POST_SCHEMA["properties"]["post"]["description"]):
-            self.assertIn("never more than 600", prompt)
-            self.assertNotIn("1000", prompt)
+            self.assertIn("never more than 1000", prompt)
+            self.assertNotIn("600", prompt)
 
     def test_random_times(self):
         import random
