@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>ИИ выдал 722 математические работы за один заход</b>\n\nНеопубликованная модель OpenAI написала 722 рукописи, которые сгруппированы в 372 семейства результатов. Независимая группа математиков AGMAI говорит, что там решения «сотен» давно открытых вопросов. Звучит как фантастика, но проверять это будут люди.\n\nВокруг релиза собрали отдельный совет элитных математиков, чтобы результаты не просто выбросили в сеть, а аккуратно разобрали. Часть сообщества пока спорит об этике и авторстве. Подробности есть в <a href='https://www.theverge.com/ai-artificial-intelligence/1005004/openai-math-release-github'>материале The Verge</a>.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/10/gettyimages-2297765991.jpg?quality=90&strip=all&crop=0%2C10.744316765259%2C100%2C78.511366469482&w=1200",
+  "media_type": "photo",
+  "time": "10:20",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Claude поселился в боковой панели Google Docs, Sheets и Slides</b>\n\nТеперь не нужно копировать текст в отдельный чат и обратно. В документах Claude правит ошибки, переписывает куски и перестраивает структуру, не ломая оформление. В таблицах пишет формулы и собирает данные в аккуратные списки. В презентациях делает новые слайды в стиле вашей колоды.\n\nСейчас это <a href='https://dev.to/hiroki-ii-ai/ai-daily-digest-october-7-2026-codex-ships-day-1-openai-watermarks-text-mistral-goes-le-chonk-1d8a'>публичная бета</a>. Расширение доступно на всех платных тарифах Claude и ставится из Workspace Marketplace.",
+  "media": "https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2b3pirrdtnv6sx31vv94.png",
+  "media_type": "photo",
+  "time": "12:00",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Найти кусок видео по голосовой записи, и всё это на самом телефоне</b>\n\nGoogle выпустила EmbeddingGemma 2. Это модель, которая превращает текст, код, фото, видео и звук в «координаты смысла», так что всё можно искать одним запросом. Например, найти видео по голосовому сообщению или нужный момент в аудио по описанию словами.\n\nСамое приятное в том, что она маленькая. По <a href='https://latentdigest.com/ai/google-deepmind-s-embeddinggemma-2-brings-multimodal-search-to-devices'>данным Latent Digest</a>, на Pixel 11 Pro ей хватает около 567 МБ памяти, а данные не уходят в облако. Лицензия открытая, Apache 2.0.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2025/01/verge-placeholder_f212b3.png?quality=90&strip=all&crop=0,0.13712291199202,100,99.725754176016",
+  "media_type": "photo",
+  "time": "14:25",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Anthropic пускает ещё 150 организаций к своим сильнейшим кибер-моделям</b>\n\nЭто как дать больше мастерам доступ к самому точному инструменту. Чем больше команд проверяют свои системы на прочность такими моделями, тем меньше слабых мест остаётся.\n\nО расширении доступа сообщает <a href='https://dev.to/hiroki-ii-ai/ai-daily-digest-october-7-2026-codex-ships-day-1-openai-watermarks-text-mistral-goes-le-chonk-1d8a'>ежедневный дайджест</a>. Какие именно организации получат допуск и когда, там не уточняется, так что ждём подробностей от самой Anthropic.",
+  "media": "https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2b3pirrdtnv6sx31vv94.png",
+  "media_type": "photo",
+  "time": "16:00",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Waymo выехала на улицы Детройта, города с настоящей зимой</b>\n\nБеспилотные такси без водителя теперь ездят по Детройту: центру, Мидтауну, Корктауну, Хамтрамку и Индиан-Виллидж. Пока только для сотрудников компании, пока Waymo выстраивает местные правила безопасности. Публику пустят, когда технологию как следует проверят.\n\nИнтересно здесь вот что: это экзамен на снег и лёд. Как <a href='https://dev.to/hiroki-ii-ai/ai-daily-digest-october-7-2026-codex-ships-day-1-openai-watermarks-text-mistral-goes-le-chonk-1d8a'>пишет дайджест</a>, Waymo зимой тестировала машины в Мичигане. Перед этим в 15-м городе США открылся Лас-Вегас.",
+  "media": "https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2b3pirrdtnv6sx31vv94.png",
+  "media_type": "photo",
+  "time": "17:10",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Codex стал печатать на 50% быстрее, и никто ничего не включал</b>\n\nРуководитель Codex в OpenAI Тибо Сотиаукс сообщил, что скорость ответа в подписке выросла примерно с 30 до 50 токенов в секунду. Токен — это кусочек слова. Проще говоря, ИИ-программист вдруг стал печатать заметно быстрее.\n\nМодели при этом не менялись, всё дело в оптимизации инфраструктуры. Это первый шаг из обещанных OpenAI <a href='https://dev.to/hiroki-ii-ai/ai-daily-digest-october-7-2026-codex-ships-day-1-openai-watermarks-text-mistral-goes-le-chonk-1d8a'>28 дней улучшений Codex</a>, так что впереди, похоже, ещё сюрпризы.",
+  "media": "https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2b3pirrdtnv6sx31vv94.png",
+  "media_type": "photo",
+  "time": "19:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>ChatGPT учится превращать совещание в готовый план</b>\n\nУ OpenAI появился плагин Meetings. Он слушает разговор, выписывает принятые решения, помнит контекст проекта и сразу превращает договорённости в обновлённый план или черновик письма.\n\nНикакой магии, но польза понятная: самое муторное после встречи, то есть вспомнить, кто что обещал, и оформить это, берёт на себя ИИ. Об этом пишет <a href='https://nishantkhurana.me/digests/x-ai-2026-10-07'>обзор AI-ленты за сегодня</a>. Когда плагин будет доступен всем, пока не ясно.",
+  "media": "https://nishantkhurana.me/digests/x-ai-2026-10-07-og-image.webp",
+  "media_type": "photo",
+  "time": "20:55",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nМатематики получили сотни ИИ-доказательств на проверку, и для их разбора собрали отдельную независимую группу.\n\nClaude теперь помогает прямо в Google Docs, Sheets и Slides, а EmbeddingGemma 2 умеет искать видео по голосовой записи на самом телефоне.\n\nWaymo вышла на заснеженные улицы Детройта, Codex стал печатать на 50% быстрее, а Anthropic расширила доступ к кибер-моделям. <a href='https://dev.to/hiroki-ii-ai/ai-daily-digest-october-7-2026-codex-ships-day-1-openai-watermarks-text-mistral-goes-le-chonk-1d8a'>Всё это — в дайджесте дня</a>.",
+  "media": "https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2b3pirrdtnv6sx31vv94.png",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
