@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>Gemini теперь берёт не задание, а цель</b>\n\nРаньше ИИ-помощнику говорили, что делать, шаг за шагом. Новый агент Gemini получает цель и сам решает, как до неё добраться: строит план, ходит по почте, документам и таблицам и приносит готовый результат. Можно даже описать роль, и у агента появится своя почта, календарь и место в списке коллег.\n\nПока он только для компаний, <a href=\"https://techcrunch.com/2026/10/08/google-brings-agentic-ai-to-gemini-starting-with-businesses/\">пишет TechCrunch</a>. Обычным людям обещают позже.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/image_3.max-2100x2100_0CYZWqn.jpg?resize=1200,591",
+  "media_type": "photo",
+  "time": "08:40",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Claude научился оживлять графики</b>\n\nПопросите Claude не просто нарисовать график, а добавить движение, и он соберёт короткий ролик: 30-секундное объяснение, диаграмму с анимацией или обзор продукта. Результат скачивается обычным MP4.\n\nЭто как если бы скучный слайд с цифрами сам встал и рассказал, что в нём главное. Подробности <a href=\"https://www.theverge.com/ai-artificial-intelligence/1008134/claude-can-now-turn-data-into-animated-explainers\">в The Verge</a>. Заодно Anthropic вывела Docs, Slides и Design из беты.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/10/Claude-Motion.png?quality=90&strip=all&crop=0%2C3.4613147178592%2C100%2C93.077370564282&w=1200",
+  "media_type": "photo",
+  "time": "09:40",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Игру теперь можно сделать, просто описав её словами</b>\n\nВ Google Labs открыли Playground. Пишете в чат, что хотите, и Gemini собирает игру прямо в браузере: 2D или 3D, хоть на двоих. Потом можно поменять физику, переписать правила или героев. Готовую игру открывают и на телефоне, и на ноутбуке, а поделиться ей можно ссылкой.\n\nЗвучит как фантастика, но <a href=\"https://9to5google.com/2026/10/07/google-labs-playground/\">9to5Google</a> подтверждает: пробовать можно бесплатно, пока только в США.",
+  "media": "https://9to5google.com/wp-content/uploads/sites/4/2026/10/Google-Labs-Playground-cover-1.jpg?quality=82&strip=all&resize=1200,628",
+  "media_type": "photo",
+  "time": "11:45",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Поиск в Windows 11 начнёт понимать по-человечески</b>\n\nСтрока поиска на панели задач превращается в пульт управления компьютером. Напишите «включи тёмную тему» или «сверни все окна», и Windows сделает это сама, без путешествия по настройкам. Ползунок громкости микрофона тоже выскочит прямо в поиске.\n\nЕщё из <a href=\"https://www.lemon-web.net/lemon-blog/system-developments/microsoft-turns-windows-11-search-into-an-ai-powered-pc-control-hub\">анонса Microsoft</a>: если телефон подключён через Phone Link, SMS можно отправить оттуда же.",
+  "media": "https://www.lemon-web.net/images/blog_articles/3366/WindowsSearchGetsSmarter.jpg",
+  "media_type": "photo",
+  "time": "12:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Появится GPS-конкурент, придуманный за пиццей</b>\n\nПять инженеров из Стэнфорда за пиццей и пивом задумались: можно ли сделать навигацию точнее GPS? Теперь их компания Xona в этом месяце выводит на орбиту шесть спутников, первую коммерческую альтернативу GPS.\n\nОбычный GPS легко глушится, а для роботов-фермеров и беспилотных машин его точности мало. Подробности <a href=\"https://techcrunch.com/2026/10/09/xonas-commercial-gps-alternative-is-about-to-go-live/\">у TechCrunch</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Copy-of-0I7A3288.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "13:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>ИИ сам придумывает медицинские исследования и проверяет их</b>\n\nПредставьте исследователя, который не спит и не устаёт. В университете MBZUAI в ОАЭ собрали DoAtlas-2: система формулирует вопрос, планирует исследование, проверяет гипотезу на реальных данных людей и сама решает, что изучать дальше. Она уже разобрала 2031 вопрос по данным 720 тысяч человек из 48 стран.\n\nКод <a href=\"https://menastartupdigest.com/mbzuai-unveils-doatlas-2-for-autonomous-biomedical-research/\">обещают открыть</a> в ближайшее время.",
+  "media": "https://substackcdn.com/image/fetch/$s_!TiUx!,w_1456,c_limit,f_webp,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F74076492-6bff-450c-8bb3-cd5f2404a11c_1280x720.png",
+  "media_type": "photo",
+  "time": "18:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Ночные смены теперь можно закончить футболом</b>\n\nПарки Нью-Йорка продлили работу ночного футбола на пяти полях, и сделали это специально для тех, кто работает по ночам. Когда у остальных вечер подходит к концу, у них день только начинается, и матч в такое время как раз кстати.\n\nВидео с реакцией людей, судя по заголовку, получилось тёплым. Историю собрал <a href=\"https://www.goodnewsnetwork.org/nyc-parks-extends-late-night-soccer-at-5-fields-for-night-workers/\">Good News Network</a>.",
+  "media": "https://www.goodnewsnetwork.org/wp-content/uploads/2026/10/credit-NYC-Mayors-Office.jpg",
+  "media_type": "photo",
+  "time": "20:15",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nClaude научился превращать цифры в короткие ролики. Google дала возможность сделать игру одним описанием, а поиск в Windows 11 начнёт понимать команды обычными словами.\n\nВ ОАЭ собрали ИИ, который сам ведёт медицинские исследования, а Xona готовит к запуску шесть спутников для навигации точнее GPS. Нью-Йорк продлил ночной футбол для тех, кто работает по ночам.\n\nСпокойной ночи.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/image_3.max-2100x2100_0CYZWqn.jpg?resize=1200,591",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
