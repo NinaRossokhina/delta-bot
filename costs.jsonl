@@ -243,3 +243,11 @@
 {"t": "2026-10-09T02:43", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.20953435}
 {"t": "2026-10-09T07:05", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-09T08:09", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.21262798}
+{"t": "2026-10-09T11:51", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T12:11", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T13:06", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T13:46", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.2130287}
+{"t": "2026-10-09T14:06", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T14:57", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T16:28", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T17:16", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
