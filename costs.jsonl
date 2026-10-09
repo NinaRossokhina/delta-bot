@@ -260,3 +260,9 @@
 {"t": "2026-10-09T19:04", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 7.81033882}
 {"t": "2026-10-09T19:04", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 8.6174928}
 {"t": "2026-10-09T19:05", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 15.45796224}
+{"t": "2026-10-09T17:57", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T19:16", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T20:36", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T20:46", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T21:36", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-09T23:01", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
