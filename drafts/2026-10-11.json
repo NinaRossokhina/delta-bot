@@ -1,0 +1,58 @@
+[
+ {
+  "text": "<b>После чат-ботов пришли модели, которые только выбирают</b>\n\nОна не пишет текст. Ей дают варианты, и за один проход она выбирает один, сразу прикладывая, насколько уверена. Microsoft назвала такую модель <a href='https://www.theverge.com/ai-artificial-intelligence/1009190/microsoft-ai-decision-model'>Decision-1</a> и уверяет, что в её тестах она обошла конкурентов по скорости и точности.\n\nЗачем это нужно? У ИИ-агента десятки мелких решений подряд, и быстрый «выбиратель» экономит кучу пауз. Похоже, это новый жанр: стартап Jev с похожей идеей оценили в $7,5 млрд через пару недель после запуска.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/10/microsoft-decision-1-stats.jpg?quality=90&strip=all&crop=1.9003254678601,0,96.19934906428,100",
+  "media_type": "photo",
+  "time": "08:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Anthropic бесплатно проверит открытые проекты на дыры</b>\n\nПочти любая программа стоит на чужом открытом коде, который часто держат пара энтузиастов без бюджета на безопасность. Для таких проектов запустили <a href='https://www.anthropic.com/news/anthropic-cyber-mission'>OSS Scanner</a>: сильнейшие модели Anthropic регулярно сканируют код и ищут уязвимости, бесплатно.\n\nЗаодно компания отправляет модели и инженеров к тем, кто охраняет электросети, водопровод и транспорт.",
+  "media": "https://www-cdn.anthropic.com/images/4zrzovbb/website/d2af4f6715cbe9766a47430a24420cfca0a2c588-1200x630.jpg",
+  "media_type": "photo",
+  "time": "10:20",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Батареи обогнали газовые турбины по цене</b>\n\nДата-центрам для ИИ нужна уйма электричества, а газовые турбины для них уже стоят в очереди на годы. Тем приятнее новость: по <a href='https://techcrunch.com/2026/10/09/batteries-are-now-cheaper-than-natural-gas-turbines-used-at-many-data-centers/'>отчёту Wood Mackenzie</a>, на всех 43 изученных рынках четырёхчасовые батареи уже дешевле газовых пиковых станций.\n\nАналитики ждут, что батареи будут дешеветь и дальше.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/05/moment-energy-luna-5.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "11:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Orkut хочет вернуться, и вот с каким лозунгом</b>\n\nПомните Orkut? Его создатель Оркут Бююккёктен <a href='https://techcrunch.com/2026/10/09/remember-orkut-its-founder-wants-to-bring-it-back/'>позвал всех записываться</a> на возрождение сети. Главное обещание: на той стороне снова будет живой человек. ИИ он называет великой технологией, но говорит, что она размывает саму идею соцсетей.\n\nЗабавно: ностальгия по 2004 году теперь продаётся как защита от ИИ-ленты. Пока это просто список желающих, сроков нет.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/orkut.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "13:05",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Таблетка от эпилепсии может оказаться ключом к больным суставам</b>\n\nПри артрозе хрящ медленно разрушается, и обычно лечат только боль. Исследователи из Йеля <a href='https://www.sciencedaily.com/news/health_medicine/'>нашли</a>, что уже одобренный препарат от эпилепсии, лакосамид, блокирует белок, который отвечает и за болевые сигналы, и за разрушение хряща.\n\nТо есть он может не просто заглушать боль, а помогать суставу восстанавливаться. Пока это результаты исследования, а не готовое лечение.",
+  "media": "https://www.sciencedaily.com/images/scidaily-icon.png",
+  "media_type": "photo",
+  "time": "15:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>237 дней на орбите, и все дома</b>\n\nЭкипаж SpaceX Crew-12 <a href='https://www.sciencedaily.com/news/top/science/'>приводнился</a> после 237 суток в космосе. За это время космонавты сделали 3792 витка и пролетели больше 100 миллионов миль, это примерно двести раз до Луны и обратно.\n\nЧасть их экспериментов готовит почву для будущих полётов на Луну и Марс.",
+  "media": "https://www.sciencedaily.com/images/scidaily-icon.png",
+  "media_type": "photo",
+  "time": "17:40",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\n— Батареи стали дешевле газовых турбин на всех 43 изученных рынках.\n— Anthropic бесплатно проверяет открытые проекты на уязвимости.\n— Таблетка от эпилепсии может пригодиться при артрозе: учёные из Йеля нашли интересный путь.\n— Экипаж <a href='https://www.sciencedaily.com/news/top/science/'>Crew-12</a> вернулся на Землю после 237 дней в космосе.\n\nХороший день для тех, кто любит, когда техника работает на людей.",
+  "media": "https://www.sciencedaily.com/images/scidaily-icon.png",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
