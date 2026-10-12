@@ -330,3 +330,12 @@
 {"t": "2026-10-12T16:48", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.20671207}
 {"t": "2026-10-12T16:56", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-12T17:53", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.20526231}
+{"t": "2026-10-12T19:00", "task": "daily", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-12T19:02", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.47082808}
+{"t": "2026-10-12T19:02", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 2.663215}
+{"t": "2026-10-12T19:02", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.50393101}
+{"t": "2026-10-12T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.88449385}
+{"t": "2026-10-12T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 7.09683249}
+{"t": "2026-10-12T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 8.66716766}
+{"t": "2026-10-12T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 10.48275444}
+{"t": "2026-10-12T19:04", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 20.74538651}
