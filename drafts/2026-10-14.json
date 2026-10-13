@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>У Meta появилась модель, которая помнит вас неделями</b>\n\nMeta выпустила Muse Wonder, свою первую модель «высшей лиги». По собственным тестам компании, она идёт вровень с лучшими конкурентами, но главное тут не баллы, а память. Ассистент запоминает, что для вас важно, и через дни и месяцы не переспрашивает всё заново. Как хороший секретарь, а не рыбка с памятью на три секунды.\n\nРазработчики уже могут пользоваться ей через API, детали есть в <a href=\"https://techcrunch.com/2026/10/12/meta-releases-its-first-frontier-model-muse-wonder/\">обзоре TechCrunch</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Screenshot-2026-10-12-at-1.09.43-PM.jpg?resize=1200,676",
+  "media_type": "photo",
+  "time": "09:15",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Apple сделала для дома экран, с которым можно говорить</b>\n\nУ Apple появился первый умный дисплей для дома, HomeView. Ставка сделана на Siri с ИИ, а сам экран получился красивым. WIRED сравнил его с гигантскими Apple Watch для квартиры.\n\nЕсть и приятная мелочь для родителей: на экране прячутся текстовые сообщения, чтобы дети их не читали. Как пишет <a href=\"https://www.theverge.com/ai-artificial-intelligence\">The Verge</a>, Apple делает упор на красоту и Siri, а не на хитрые функции умного дома.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/10/STK255_Google_Gemini_A.jpg?quality=90&strip=all&crop=0%2C10.732984293194%2C100%2C78.534031413613&w=1200",
+  "media_type": "photo",
+  "time": "10:45",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Умные очки Samsung показали во всех вариантах</b>\n\nВ сеть утекли снимки всех моделей очков, которые Samsung делает с Google, а оправы придумали Warby Parker и Gentle Monster. То есть это не гаджет, который стыдно носить, а попытка сделать обычные очки с умом внутри.\n\nОфициально Samsung пока ничего не показывала, так что это слухи. По ним, запуск ждёт уже в следующем месяце. Подборку снимков собрал <a href=\"https://www.theverge.com/tech/1009768/get-a-look-at-every-single-pair-of-samsung-smart-glasses\">The Verge</a>.",
+  "media": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/10/samsung-smart-glasses-warby-parker-trio-k0bucxvl5e-2048x1280-1.webp?quality=90&strip=all&crop=0%2C8.1151832460733%2C100%2C83.769633507853&w=1200",
+  "media_type": "photo",
+  "time": "12:05",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Видео-нейросеть научили складывать оригами по шагам</b>\n\nОбычно нейросеть рисует ролик и на этом всё. WorldGuide из университета MBZUAI делает иначе: получает картинку и цель, выбирает следующее действие, снимает короткий ролик, смотрит на результат и решает, что дальше или пора остановиться. Как человек над недособранным шкафом.\n\nПока она справляется примерно с каждой третьей задачей (33,33%), зато лучше конкурента. Подробности в <a href=\"https://menastartupdigest.com/mbzuai-unveils-worldguide-video-ai-model-with-closed-loop-planning/\">заметке MENA Startup Digest</a>.",
+  "media": "https://substackcdn.com/image/fetch/$s_!bMHq!,w_1456,c_limit,f_webp,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fac579b80-0234-4696-8a02-2e65cbaa1897_1280x720.png",
+  "media_type": "photo",
+  "time": "14:05",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Карты учат отличать «купи это» от «ИИ что-то напутал»</b>\n\nКогда ИИ-агенты начнут сами делать покупки, важно, чтобы они не купили лишнего. American Express придумала для этого правила: намерение покупателя фиксируется и сопровождает сделку от начала и до конца. В компании надеются, что это станет отраслевым стандартом.\n\nПока споров из-за покупок агентами у Amex не прибавилось, это превентивная мера. Так рассказали <a href=\"https://techcrunch.com/2026/10/13/amex-introduces-a-framework-to-prevent-ai-agents-from-making-unauthorized-purchases/\">TechCrunch</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/amex-GettyImages-171311164.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "15:20",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Читать между строк на картинках ИИ пока учится</b>\n\nПоказываешь человеку фото, и он сразу понимает, что вот-вот случится или кто тут кому кем приходится. Для нейросетей это сложнее. Новый тест Humanity's Sixth Sense от Elorian и Scale AI проверяет именно это: 522 вопроса по фото и коротким видео.\n\nЛюди набирают 93,1 балла, лучшая нейросеть, GPT 6 Astra, 53,6. Зато ясно, куда расти. Подробности пересказал <a href=\"https://latentdigest.com/ai/ai-models-struggle-with-implied-visual-information-benchmark-finds\">Latent Digest</a>.",
+  "media": null,
+  "media_type": "none",
+  "time": "16:25",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Частицу остановили полем, через которое она не проходила</b>\n\nФизики из Оксфорда воспроизвели странный квантовый эффект: частица реагирует на магнитное поле, ни разу в него не попав. Это как почувствовать ветер в комнате, в которую вы не заходили. Звучит как фантастика, но это давно известная квантовая физика.\n\nНовое здесь в том, что эффект показали на гибридном квантовом компьютере, смоделировав магнитный поток. Об этом пишет <a href=\"https://www.sciencedaily.com/news/computers_math/artificial_intelligence/\">ScienceDaily</a>.",
+  "media": "https://www.sciencedaily.com/images/scidaily-icon.png",
+  "media_type": "photo",
+  "time": "20:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nМодель Meta научилась помнить, что вам важно, и не переспрашивать. Нейросеть из MBZUAI пробует складывать оригами по шагам: смотрит, что получилось, и решает, что делать дальше.\n\nAmerican Express придумала способ не дать ИИ-агентам купить лишнее. Apple показала умный экран для дома, а Samsung, судя по утечке, готовит очки с Warby Parker и Gentle Monster.\n\nФизики из Оксфорда повторили странный квантовый эффект на гибридном компьютере. Подробнее: <a href=\"https://techcrunch.com/2026/10/12/meta-releases-its-first-frontier-model-muse-wonder/\">TechCrunch</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Screenshot-2026-10-12-at-1.09.43-PM.jpg?resize=1200,676",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
