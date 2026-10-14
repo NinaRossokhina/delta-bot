@@ -427,3 +427,7 @@
 {"t": "2026-10-14T12:56", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-14T14:07", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-14T15:05", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-14T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.42341917}
+{"t": "2026-10-14T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 2.88281698}
+{"t": "2026-10-14T19:03", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 4.10676235}
+{"t": "2026-10-14T19:04", "task": "daily", "model": "anthropic/claude-sonnet-5.5", "rub": 10.5615064}
