@@ -216,11 +216,52 @@ def use_tool(tool_call, task):
     if name == "fetch_page":
         return json.dumps(fetch_page(str(args.get("url", ""))), ensure_ascii=False), 0
     if name == "web_search":
-        return json.dumps(gemini.search(str(args.get("query", "")), today=now_msk()[:10]), ensure_ascii=False), 0
+        return json.dumps(web_search(str(args.get("query", ""))), ensure_ascii=False), 0
     if name == "send_drafts":
         ok = send_posts(args.get("posts", []), task)
         return f"Sent {ok} drafts.", ok
     return f"Error: unknown tool {name}.", 0
+
+
+# Free news feeds for web_search when Google search has no free quota: the hot news sources plus
+# big tech media (general ones only with AI words in the title).
+NEWS_FEEDS = [
+    ("TechCrunch AI", "rss", "https://techcrunch.com/category/artificial-intelligence/feed/", False),
+    ("The Verge AI", "rss", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", False),
+    ("MIT Technology Review", "rss", "https://www.technologyreview.com/feed/", True),
+    ("Ars Technica", "rss", "https://feeds.arstechnica.com/arstechnica/technology-lab", True),
+]
+NEWS_HOURS, NEWS_MAX = 48, 60
+FEEDS_NOTE = ("Google search is not available right now. Here are fresh headlines (newest first) from AI and "
+              "tech news feeds instead: pick the stories that fit and open them with fetch_page.")
+_google = {"on": True, "news": None}
+
+
+def free_news():
+    """Fresh headlines of the free news feeds (collected once per run): {"answer", "sources"}."""
+    if _google["news"] is None:
+        import hot  # hot imports ai, so not at the top
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        items = [x for x in hot.collect(hot.SOURCES + NEWS_FEEDS)
+                 if x["published"] is None or now - x["published"] <= timedelta(hours=NEWS_HOURS)]
+        items.sort(key=lambda x: x["published"] or now, reverse=True)
+        _google["news"] = [{"title": x["title"], "url": x["url"], "source": x["source"],
+                            "published": x["published"].strftime("%Y-%m-%d %H:%M UTC") if x["published"] else ""}
+                           for x in items[:NEWS_MAX]]
+    return {"answer": FEEDS_NOTE, "sources": _google["news"]}
+
+
+def web_search(query):
+    """The web_search tool (Gemini only): Google search through Gemini; once it fails (the free key may
+    have no search quota), the free news feeds for the rest of the run."""
+    if _google["on"]:
+        try:
+            return gemini.search(query, today=now_msk()[:10])
+        except gemini.Failed as e:
+            print(f"google search failed, using news feeds: {e}")
+            _google["on"] = False
+    return free_news()
 
 
 def ask(messages, tools=None, web=False, **params):

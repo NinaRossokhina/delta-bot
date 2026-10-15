@@ -26,12 +26,14 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # The alias always points to the current Flash model (free tier); the GEMINI_MODEL repository
 # variable replaces it without a code change.
 MODEL = os.environ.get("GEMINI_MODEL") or "gemini-flash-latest"
-RATE_LIMIT_WAITS = (20, 40, 60)  # seconds to wait after "too many requests" before giving up
+SPARE_MODEL = "gemini-flash-lite-latest"  # also free; used when MODEL stays busy (503 "high demand")
+RATE_LIMIT_WAITS = (20, 40, 60)  # seconds to wait after "too many requests" or "busy" before giving up
 UA = {"User-Agent": "Mozilla/5.0 (compatible; DeltaBot/1.0)"}
 
 WEB_SEARCH = {"type": "function", "function": {
     "name": "web_search",
-    "description": "Search the web with Google. Returns a short answer and its sources (title, url). "
+    "description": "Search the web with Google. Returns a short answer and its sources (title, url), or, when "
+                   "Google search is unavailable, a list of fresh headlines from news feeds to choose from. "
                    "Ask for what you need in one query, e.g. «AI news of the last 24 hours: new models and research».",
     "parameters": {"type": "object", "properties": {"query": {"type": "string"}},
                    "required": ["query"], "additionalProperties": False}}}
@@ -87,17 +89,19 @@ def chat(messages, tools=None, response_format=None, max_tokens=16000, sleep=tim
             messages = _with_json_hint(messages, response_format)
     elif response_format:
         params["response_format"] = response_format
-    for wait in (*RATE_LIMIT_WAITS, None):
+    attempts = [(MODEL, w) for w in RATE_LIMIT_WAITS] + [(SPARE_MODEL, 0), (SPARE_MODEL, None)]
+    for model, wait in attempts:
         try:
-            response = client().chat.completions.create(model=MODEL, messages=messages, max_tokens=max_tokens, **params)
+            response = client().chat.completions.create(model=model, messages=messages, max_tokens=max_tokens, **params)
             break
-        except openai.RateLimitError as e:
+        except (openai.RateLimitError, openai.InternalServerError) as e:  # quota or "high demand": wait, then the spare model
             if wait is None:
-                raise Failed(f"лимит бесплатных запросов: {str(e)[:150]}") from e
+                raise Failed(f"Gemini перегружен или кончился лимит: {str(e)[:150]}") from e
+            print(f"gemini {model} busy ({type(e).__name__}), waiting {wait} s", flush=True)
             sleep(wait)
         except openai.APIError as e:
             raise Failed(f"{type(e).__name__}: {str(e)[:200]}") from e
-    costs.record(f"google/{MODEL}", {"cost": 0})
+    costs.record(f"google/{model}", {"cost": 0})
     if not response.choices:
         raise Failed("пустой ответ")
     return response.choices[0]
@@ -123,8 +127,9 @@ def _generate(body, sleep):
             with urllib.request.urlopen(request, timeout=120) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
-            if e.code not in (429, 500, 503) or wait is None:
-                raise Failed(f"поиск Google: HTTP {e.code} {e.read()[:200]!r}") from e
+            # 429 here is the search quota (per day): waiting does not help, the caller switches to news feeds
+            if e.code not in (500, 503) or wait is None:
+                raise Failed(f"поиск Google: HTTP {e.code} {e.read()[:600]!r}") from e
             sleep(wait)
         except OSError as e:
             raise Failed(f"поиск Google: {e!r}"[:200]) from e
