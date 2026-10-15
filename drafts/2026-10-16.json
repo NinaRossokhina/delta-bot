@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>Google сделала корзину, которая помнит всё, что вы присмотрели</b>\n\nКуртка из поиска, вторая из Gemini, третья с чужого сайта. Раньше это три вкладки и хаос. Теперь <a href=\"https://techcrunch.com/2026/10/15/googles-universal-cart-shopping-tool-launches-in-the-us/\">Universal Cart</a> собирает всё в одном месте и сама следит за ценой: подешевело или снова появилось в наличии, и вам придёт уведомление.\n\nЕщё подскажет, какой картой выгоднее платить, и найдёт промокод. Пока работает только в США.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Google-UniversalCart.png?w=1200",
+  "media_type": "photo",
+  "time": "07:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>В машину Rivian можно будет посадить Claude</b>\n\nСейчас электрокары Rivian уже слушаются голоса: сделай теплее, включи подогрев сиденья, перескажи новости. Но глава компании РДж Скаринджи сказал на Disrupt, что дальше в машинах смогут работать ИИ-агенты чужих компаний, например Anthropic. «Вот тут и начинается магия», — сказал он.\n\nКогда это случится, не сообщают. <a href=\"https://techcrunch.com/2026/10/15/ai-agents-are-coming-to-rivians-cars/\">TechCrunch пишет</a>, что подробности обещают на декабрьском мероприятии Rivian.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/55587802359_b756c3c3bd_k.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "08:55",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Чипы для ИИ теперь проектирует сам ИИ</b>\n\nКогда-то система AlphaChip расставила детали на чипе кольцом, похожим на бублик. Инженеры удивились: так никто не делает. Её создательницы теперь строят стартап Ricursive Intelligence, где ИИ проектирует чип, учится на каждой версии и делает следующую лучше.\n\nИдея простая: спрос на вычисления за пять лет вырастет минимум в 10 000 раз, а строить в 10 000 раз больше дата-центров никто не хочет. Лучше сделать сами чипы <a href=\"https://techcrunch.com/2026/10/14/ricursive-intelligence-is-betting-on-ai-designed-chips-to-help-solve-the-compute-crisis/\">эффективнее</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/55590095286_7fe28ddb94_o.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "10:45",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Чип-протез сетчатки впервые поставили при болезни Штаргардта</b>\n\nПри этой наследственной болезни в центре зрения появляется слепое пятно, и оно со временем растёт. Лечения нет, сейчас с ней живут около 150 тысяч человек.\n\nКомпания Science Corporation <a href=\"https://techcrunch.com/2026/10/13/science-corporation-implants-its-vision-restoring-chip-in-its-first-stargardt-disease-patient/\">имплантировала</a> чип PRIMA первому такому пациенту. В Европе он уже продаётся для другой болезни глаз. Логика простая: если поражены клетки, ловящие свет, чип берёт эту работу на себя и передаёт сигнал дальше в мозг.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/55588371385_eb2e316d52_o.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "12:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Как вернуть дронта, если от него остался один геном</b>\n\nДля мамонта учёные Colossal собрали около 100 геномов. Для дронта, птицы с Маврикия, есть всего один: в тропиках ДНК хранится плохо. Сравнивать не с чем.\n\nПоэтому компания сделала ИИ-платформу GenoMorph. Её учили на данных кур, перепелов, уток и голубей, плюс на 3D-измерениях черепов более чем 70 видов птиц. Она угадывает, какие гены дали дронту знаменитый клюв. Основатель Бен Ламм называет это <a href=\"https://techcrunch.com/2026/10/14/colossal-biosciences-announces-new-ai-platform-to-help-accelerate-de-extinction-efforts/\">«картой сокровищ»</a> по геному.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Colossal-Labs-2.png?resize=1200,691",
+  "media_type": "photo",
+  "time": "15:45",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>ИИ-агенты притворяются жертвами, чтобы мошенникам было не до других</b>\n\nАвстралийский стартап Apate держит тысячи агентов, которые отвечают на звонки мошенников, мнутся, переспрашивают и вообще изображают лёгкую добычу. У них разные возраст, акцент и язык.\n\nПо <a href=\"https://techcrunch.com/2026/10/14/apate-sends-ai-agents-undercover-to-get-scammed-so-they-can-gather-fraud-intelligence/\">данным компании</a>, за 2,5 миллиона разговоров они отняли у мошенников 17 лет времени. А заодно выведали номера, кошельки и сайты, которые потом передают банкам и операторам. Приятно, когда у жулика тоже бывает рабочий день насмарку.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/6811e05224449e9b499b4916_apate_team-p-1600.webp?resize=1200,797",
+  "media_type": "photo",
+  "time": "17:50",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>В Deezer появится кнопка «только живая музыка»</b>\n\nИИ-треков в потоке стало так много, что сервис решил дать выбор. К концу года в Deezer обещают переключатель, который уберёт ИИ-музыку из поиска, альбомов и похожих исполнителей.\n\nЦифры <a href=\"https://techcrunch.com/2026/10/14/deezer-will-soon-let-you-filter-out-ai-generated-music/\">впечатляют</a>: в июле больше половины ежедневных загрузок, около 90 тысяч треков в день, были сгенерированы ИИ. А около 45% слушателей, по опросу, хотели бы такой фильтр. Технология технологией, а вкус у каждого свой.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/Deezer-AI-detection-feat.jpg?w=1067",
+  "media_type": "photo",
+  "time": "19:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\n— Google запустила <a href=\"https://techcrunch.com/2026/10/15/googles-universal-cart-shopping-tool-launches-in-the-us/\">общую корзину</a>, которая следит за ценами.\n— Чип PRIMA <a href=\"https://techcrunch.com/2026/10/13/science-corporation-implants-its-vision-restoring-chip-in-its-first-stargardt-disease-patient/\">имплантировали</a> первому пациенту с болезнью Штаргардта.\n— ИИ <a href=\"https://techcrunch.com/2026/10/14/colossal-biosciences-announces-new-ai-platform-to-help-accelerate-de-extinction-efforts/\">ищет гены</a> знаменитого клюва дронта.\n— Агенты-«жертвы» <a href=\"https://techcrunch.com/2026/10/14/apate-sends-ai-agents-undercover-to-get-scammed-so-they-can-gather-fraud-intelligence/\">отняли у мошенников</a> 17 лет времени.\n— Amazon <a href=\"https://techcrunch.com/2026/10/15/amazons-bee-launches-two-new-personal-ai-devices-starting-at-75/\">выпустила</a> ИИ-блокнот Bee Frontier за $75.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/BEE_FAMILY_01_1080x1080.jpg?w=1080",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
