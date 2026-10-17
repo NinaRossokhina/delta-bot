@@ -1,0 +1,66 @@
+[
+ {
+  "text": "<b>Waymo едет в Торонто проверять беспилотники на настоящей зиме</b>\n\nЭто самый северный и, вероятно, самый снежный город, где Waymo пробовала работать. Для беспилотных машин зима — экзамен посерьёзнее любой калифорнийской трассы.\n\nСначала машины будут ездить с водителем и рисовать карты улиц. Потом выедут сами, но с оператором за рулём. Первых пассажиров <a href=\"https://waymo.com/blog/\">в блоге Waymo</a> обещают принять в 2028 году.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/08/waymo-ojai.jpg?resize=1200,675",
+  "media_type": "photo",
+  "time": "07:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Нейросеть научили «приближать» картинку прямо во время раздумий</b>\n\nОбычно ИИ смотрит на фото один раз, превращает его в слова и дальше рассуждает по памяти. Новая модель Glimpse так не делает: посреди рассуждения она может вырезать кусок кадра, достать момент из видео или что-то измерить кодом. Это как развести пальцами фото в телефоне, чтобы перепроверить себя.\n\nИдея родилась за настольной игрой: ИИ не смог сказать, кто в ней выигрывает. Модель вышла как <a href=\"https://techcrunch.com/2026/10/16/elorians-first-ai-model-wants-to-reason-with-images-not-just-about-them/\">исследовательская версия</a> с чатом.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/image-1.png?resize=1200,675",
+  "media_type": "photo",
+  "time": "10:15",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Погоду на месяц вперёд научились предсказывать точнее</b>\n\nПрогнозы дальше двух недель всегда были чем-то вроде гадания, а именно этот срок важен энергетикам, фермерам и службам, которые готовятся к стихии.\n\nИсследователи из MIT с коллегами не строят прогноз с нуля. Их модель учится исправлять ошибки обычных прогнозных систем, как редактор, который правит черновик. На горизонте от двух до шести недель, <a href=\"https://news.mit.edu/2026/researchers-improve-weather-forecasts-looking-two-six-weeks-out-1014\">пишет MIT News</a>, это побило рекорды точности.",
+  "media": "https://news.mit.edu/sites/default/files/images/202610/MIT-Weather-Forecasting-01.gif",
+  "media_type": "photo",
+  "time": "12:35",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Клетки переписываются друг с другом, а ИИ учится читать их переписку</b>\n\nКогда из горстки стволовых клеток растёт эмбрион, каждая клетка решает, кем ей стать, не сама. Она постоянно получает химические сообщения от соседей: где ты, что пора делать.\n\nУченые из Whitehead Institute при MIT сделали <a href=\"https://news.mit.edu/2026/ai-model-decodes-language-cells-use-communicate-1015\">модель</a>, которая разбирает этот язык. Звучит как фантастика, но польза вполне земная: быстрее выращивать ткани из стволовых клеток и строить точнее модели болезней.",
+  "media": "https://news.mit.edu/sites/default/files/images/202609/mit-whitehead-lung.jpg",
+  "media_type": "photo",
+  "time": "14:15",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Космический телескоп Roman видит лучше, чем рассчитывали</b>\n\nИнженеры NASA сдвинули зеркало телескопа на одну шестнадцатую толщины человеческого волоса. И этого хватило, чтобы картинка стала чётче: по <a href=\"https://www.sciencedaily.com/news/top/science/\">сводке ScienceDaily</a>, телескоп превзошёл ожидания почти на 30%.\n\nПредставьте настройку фокуса, где ошибка в волосок решает, увидите вы далёкую галактику или размытое пятно. Вот это правда впечатляет.",
+  "media": "https://assets.science.nasa.gov/content/dam/science/missions/rst/spacecraft-illustrations/Roman_BeautyPass2026-med.png/jcr:content/renditions/cq5dam.web.1280.1280.png",
+  "media_type": "photo",
+  "time": "15:30",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Кубок Startup Battlefield достался стартапу с кишечником размером в миллиметр</b>\n\nИз 20 команд на TechCrunch Disrupt победила Intero Biosystems. Она выращивает в лаборатории крошечные кусочки человеческого кишечника, миллиметровые «органоиды». На них можно смотреть, как лекарство или вещество подействует на организм, ещё до испытаний на людях.\n\nПроект вырос из Мичиганского университета. Награда — кубок и $100 тысяч, <a href=\"https://techcrunch.com/2026/10/15/and-the-winner-of-startup-battlefield-at-disrupt-2026-is-intero-biosystems/\">рассказал TechCrunch</a>.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/10/55592280883_eb4cee0d80_k.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "18:45",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Самая скромная нейросеть неожиданно обогнала всех по популярности</b>\n\nJev не пишет стихи и не болтает. Она умеет одно: выбирать из нескольких готовых вариантов, зато быстро и дёшево. Для сортировки огромных массивов данных то, что нужно.\n\nЗа две недели её подключили 35% платных команд на платформе Vercel, почти вдвое больше, чем вторую по популярности модель Sonnet 5.5. Это <a href=\"https://techcrunch.com/2026/10/16/jev-is-vercels-fastest-adopted-ai-model-ever/\">самый быстрый старт</a> в истории этой платформы.",
+  "media": "https://techcrunch.com/wp-content/uploads/2026/04/vercel-2249343327-smaller.jpg?resize=1200,800",
+  "media_type": "photo",
+  "time": "19:55",
+  "suggested": true,
+  "digest": false
+ },
+ {
+  "text": "<b>Вечерний дайджест: что хорошего случилось за день</b>\n\nПрогнозы погоды на две-шесть недель вперёд стали точнее: <a href=\"https://news.mit.edu/2026/researchers-improve-weather-forecasts-looking-two-six-weeks-out-1014\">машинное обучение</a> учится править ошибки обычных моделей.\n\nКлетки, оказывается, всё время переписываются, и ИИ теперь умеет <a href=\"https://news.mit.edu/2026/ai-model-decodes-language-cells-use-communicate-1015\">читать эти сообщения</a>.\n\nWaymo готовит беспилотное такси для зимнего Торонто, а нейросеть Glimpse учится приближать картинку, как мы пальцами в телефоне.",
+  "media": "https://news.mit.edu/sites/default/files/images/202610/MIT-Weather-Forecasting-01.gif",
+  "media_type": "photo",
+  "time": "22:00",
+  "suggested": true,
+  "digest": true
+ }
+]
