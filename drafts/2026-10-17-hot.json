@@ -1,0 +1,9 @@
+[
+ {
+  "text": "<b>DeepSeek выложила новую модель, которая понимает и картинки</b>\n\nСегодня ночью на <a href=\"https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017\">Hugging Face</a> появилась DeepSeek-V4.1-Flash-1017. Она открытая, с лицензией MIT: скачивать и дорабатывать может кто угодно, даже компании.\n\nМодель принимает текст и изображения. Внутри около 763 миллиардов «ручек настройки», то есть параметров.\n\nОписания и тестов пока нет, так что о качестве судить рано. Но за несколько часов она набрала больше 600 лайков.",
+  "media": "https://cdn-thumbnails.huggingface.co/social-thumbnails/models/deepseek-ai/DeepSeek-V4.1-Flash-1017.png",
+  "media_type": "photo",
+  "time": "18:00",
+  "suggested": true
+ }
+]
