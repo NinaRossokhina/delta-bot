@@ -35,8 +35,10 @@ from send_drafts import CAPTION_LIMIT, send
 from tg import TOO_BIG, Unavailable, call, download
 
 ADMIN = os.environ["ADMIN_CHAT_ID"]
-POST_LIMIT = 600  # characters of a post with its headline, without HTML tags (style-guide.md, Nina 02.10.2026)
-LENGTH = f"400-{POST_LIMIT} characters with the headline, never more than {POST_LIMIT}"
+# characters of a post with its headline, without HTML tags (style-guide.md): a weekly diary post since
+# Nina's decision of 06.10.2026, still a single photo caption (send_drafts.CAPTION_LIMIT)
+POST_LIMIT = 1000
+LENGTH = f"500-{POST_LIMIT} characters with the headline, never more than {POST_LIMIT}"
 
 POST_SCHEMA = {
     "type": "object",
@@ -453,7 +455,7 @@ IMAGES = "images.jsonl"  # {"msg": id of a post from a voice message, "prompt": 
 
 
 def voice_system_prompt():
-    return f"""You turn Nina's voice messages into posts for Delta (@delta24news), her Russian-language Telegram channel about AI and technology. The post is published under her name, so it must sound like her.
+    return f"""You turn Nina's voice messages into posts for Delta (@delta24news), her Russian-language Telegram channel: a weekly diary of her own practice in AI automation (bots, n8n and Make workflows, Claude assistants, prompts). The post is published under her name, so it must sound like her.
 
 How Nina writes (her voice):
 {read("style/my-voice.md")}
@@ -616,7 +618,10 @@ def _main(task):
             print(f"no daily part {part!r}, nothing to do")
             return
         day = part_day(part)
-        if task.get("scheduled") and drafts_exist(day, part):
+        if task.get("scheduled"):  # Nina 06.10.2026: the channel is a weekly diary, no daily news drafts
+            print("daily drafts are off, nothing to do")
+            return
+        if drafts_exist(day, part):
             print(f"drafts for {day} ({part}) already exist, nothing to do")
             return
         try:
