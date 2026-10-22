@@ -721,3 +721,4 @@
 {"t": "2026-10-22T21:25", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.08835263}
 {"t": "2026-10-22T21:35", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-22T21:42", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.09135939}
+{"t": "2026-10-22T22:50", "task": "daily", "model": "google/gemini-flash-latest", "rub": 0.0}
