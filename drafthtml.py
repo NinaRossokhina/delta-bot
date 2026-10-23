@@ -1,7 +1,8 @@
 """Turn a Telegram message (text/caption + entities) back into the HTML a draft was written in."""
 from html import escape
 
-TAGS = {"bold": "b", "italic": "i", "underline": "u", "strikethrough": "s", "code": "code", "spoiler": "tg-spoiler"}
+TAGS = {"bold": "b", "italic": "i", "underline": "u", "strikethrough": "s", "code": "code", "spoiler": "tg-spoiler",
+        "blockquote": "blockquote", "pre": "pre"}
 
 
 def _utf16_units(s):
@@ -17,6 +18,8 @@ def to_html(message):
     for e in entities:
         if e["type"] == "text_link":
             tag = (f'<a href="{escape(e["url"])}">', "</a>")
+        elif e["type"] == "expandable_blockquote":
+            tag = ("<blockquote expandable>", "</blockquote>")
         elif e["type"] in TAGS:
             tag = (f"<{TAGS[e['type']]}>", f"</{TAGS[e['type']]}>")
         else:
