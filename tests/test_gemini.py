@@ -80,15 +80,26 @@ class GeminiTest(unittest.TestCase):
 
     def test_rate_limit_waits_then_gives_up(self):
         waits = []
-        self.g_replies += [(429, {"error": {"message": "quota"}})] * 4
+        self.g_replies += [(429, {"error": {"message": "quota"}})] * 5
         with self.assertRaises(gemini.Failed):
             gemini.chat([{"role": "user", "content": "hi"}], sleep=waits.append)
-        self.assertEqual(waits, list(gemini.RATE_LIMIT_WAITS))
+        self.assertEqual(waits, [*gemini.RATE_LIMIT_WAITS, 0])
+
+    def test_busy_model_waits_then_uses_the_spare_one(self):
+        waits = []
+        busy = (503, {"error": {"code": 503, "message": "This model is currently experiencing high demand."}})
+        self.g_replies += [busy] * 3 + [busy, (200, completion("ok"))]
+        choice = gemini.chat([{"role": "user", "content": "hi"}], sleep=waits.append)
+        self.assertEqual(choice.message.content, "ok")
+        self.assertEqual(waits, [*gemini.RATE_LIMIT_WAITS, 0])
+        models = [json.loads(r.content)["model"] for r in self.g_requests]
+        self.assertEqual(models, [gemini.MODEL] * 3 + [gemini.SPARE_MODEL] * 2)
+        self.assertEqual(costs.load()[-1]["model"], f"google/{gemini.SPARE_MODEL}")
 
     def test_request_does_not_resend_drafts_through_polza(self):
         self.g_replies += [(200, completion(tool_calls=[("send_drafts", {"posts": [
                                {"text": "<b>A</b>", "media": "", "media_type": "none", "day": "2026-10-02"}]})])),
-                           (500, {"error": {"message": "boom"}})]
+                           (400, {"error": {"message": "boom"}})]
         with mock.patch("ai.send", return_value={"message_id": 1}) as send:
             self.assertEqual(ai.free_first(ai.run, {"kind": "chat", "text": "пришли новость"}), "Готово.")
         send.assert_called_once()
@@ -118,6 +129,33 @@ class GeminiTest(unittest.TestCase):
         self.assertEqual(api.full_url, f"{gemini.BASE_URL}/models/{gemini.MODEL}:generateContent")
         self.assertEqual(api.get_header("X-goog-api-key"), "g-key")
         self.assertEqual(json.loads(api.data)["tools"], [{"google_search": {}}])
+
+    def test_web_search_falls_back_to_free_news_feeds(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        items = [{"source": "TechCrunch AI", "title": "Old", "url": "https://t/old", "id": "1", "published": now - timedelta(days=5)},
+                 {"source": "OpenAI", "title": "New model", "url": "https://o/new", "id": "2", "published": now - timedelta(hours=1)},
+                 {"source": "Anthropic", "title": "Claude news", "url": "https://a/n", "id": "3", "published": None}]
+        with mock.patch.dict(ai._google, on=True, news=None), \
+                mock.patch("gemini.search", side_effect=gemini.Failed("HTTP 429 quota")) as search, \
+                mock.patch("hot.collect", return_value=items) as collect:
+            first = ai.web_search("AI news")
+            second = ai.web_search("more AI news")
+        search.assert_called_once()  # Google search is not tried again in this run
+        collect.assert_called_once()  # the feeds are read once
+        self.assertEqual(first, second)
+        self.assertIn("not available", first["answer"])
+        self.assertEqual([x["title"] for x in first["sources"]], ["Claude news", "New model"])
+        sources = collect.call_args[0][0]
+        self.assertIn("TechCrunch AI", [x[0] for x in sources])
+
+    def test_search_quota_fails_at_once(self):
+        import urllib.error
+        waits = []
+        error = urllib.error.HTTPError("u", 429, "quota", {}, io.BytesIO(b'{"error": {"status": "RESOURCE_EXHAUSTED"}}'))
+        with mock.patch("urllib.request.urlopen", side_effect=error), self.assertRaises(gemini.Failed):
+            gemini.search("AI", sleep=waits.append)
+        self.assertEqual(waits, [])  # a daily quota: no point in waiting
 
     def test_json_text_accepts_fences(self):
         self.assertEqual(gemini.json_text('```json\n{"a": 1}\n```'), {"a": 1})
