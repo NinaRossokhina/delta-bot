@@ -772,3 +772,9 @@
 {"t": "2026-10-26T00:41", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.09808846}
 {"t": "2026-10-26T02:41", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-10-26T05:59", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-26T07:49", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-26T08:10", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-26T11:01", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.0968009}
+{"t": "2026-10-26T11:44", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-26T12:11", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-10-26T13:15", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.0960986}
