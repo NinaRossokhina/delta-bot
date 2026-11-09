@@ -992,3 +992,6 @@
 {"t": "2026-11-08T11:03", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-11-08T18:06", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
 {"t": "2026-11-08T23:16", "task": "daily", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-11-08T22:38", "task": "hot", "model": "anthropic/claude-haiku-4.5", "rub": 0.13458596}
+{"t": "2026-11-09T02:08", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
+{"t": "2026-11-09T05:41", "task": "hot", "model": "google/gemini-flash-latest", "rub": 0.0}
